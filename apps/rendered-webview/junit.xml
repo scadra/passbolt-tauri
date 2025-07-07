@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="14" failures="0" errors="0" time="6.101">
+  <testsuite name="IPCHandler" errors="0" failures="0" skipped="0" timestamp="2025-06-11T11:59:17" time="1.911" tests="14">
+    <testcase classname="IPCHandler IPCHandler:on should add a listener when on is called" name="IPCHandler IPCHandler:on should add a listener when on is called" time="0.001">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:once should add a listener that only triggers once when once is called" name="IPCHandler IPCHandler:once should add a listener that only triggers once when once is called" time="0">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:emit should emit function sends message via postMessage" name="IPCHandler IPCHandler:emit should emit function sends message via postMessage" time="0.002">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:emit should correctly form ipc for topic and message" name="IPCHandler IPCHandler:emit should correctly form ipc for topic and message" time="0">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:emit should pass the raw requestArgs if the first argument is not a string" name="IPCHandler IPCHandler:emit should pass the raw requestArgs if the first argument is not a string" time="0">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:emit should correctly form ipc for topic and SUCCESS status" name="IPCHandler IPCHandler:emit should correctly form ipc for topic and SUCCESS status" time="0">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:request should request function emits request and registers one-time listener for response" name="IPCHandler IPCHandler:request should request function emits request and registers one-time listener for response" time="0.001">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:request should request generates a requestId and adds it to the request parameters" name="IPCHandler IPCHandler:request should request generates a requestId and adds it to the request parameters" time="0.001">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:request should request resolve in case of status is success" name="IPCHandler IPCHandler:request should request resolve in case of status is success" time="0.001">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:request should request reject in case of status is error" name="IPCHandler IPCHandler:request should request reject in case of status is error" time="0">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:initListener should register a message topic listener on chrome.webview with initListener" name="IPCHandler IPCHandler:initListener should register a message topic listener on chrome.webview with initListener" time="0">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:_onMessage _onMessage triggers registered callbacks with correct arguments" name="IPCHandler IPCHandler:_onMessage _onMessage triggers registered callbacks with correct arguments" time="0">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:_onMessage _onMessage removes once listener after first trigger" name="IPCHandler IPCHandler:_onMessage _onMessage removes once listener after first trigger" time="0">
+    </testcase>
+    <testcase classname="IPCHandler IPCHandler:_addListener _addListener adds listener object to listeners" name="IPCHandler IPCHandler:_addListener _addListener adds listener object to listeners" time="0.001">
+    </testcase>
+  </testsuite>
+</testsuites>

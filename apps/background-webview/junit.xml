@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="6" failures="0" errors="0" time="14.812">
+  <testsuite name="Main workspace class" errors="0" failures="0" skipped="0" timestamp="2025-06-12T08:07:35" time="12.108" tests="6">
+    <testcase classname="Main workspace class should listen to the browser extension events" name="Main workspace class should listen to the browser extension events" time="0.047">
+    </testcase>
+    <testcase classname="Main workspace class should not initialize the local storage if user exist and post a message" name="Main workspace class should not initialize the local storage if user exist and post a message" time="0.01">
+    </testcase>
+    <testcase classname="Main workspace class should send an event when localstorage is updated" name="Main workspace class should send an event when localstorage is updated" time="0.008">
+    </testcase>
+    <testcase classname="Main workspace class should send an event when localstorage is delete" name="Main workspace class should send an event when localstorage is delete" time="0.008">
+    </testcase>
+    <testcase classname="Main workspace class should send an event when localstorage is cleared" name="Main workspace class should send an event when localstorage is cleared" time="0.006">
+    </testcase>
+    <testcase classname="Main workspace class should listen to global alarms and start loop authentication service" name="Main workspace class should listen to global alarms and start loop authentication service" time="0.006">
+    </testcase>
+  </testsuite>
+</testsuites>

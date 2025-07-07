@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "url": "https://help.passbolt.com/*"
+        },
+        {
+          "url": "https://www.passbolt.com/*"
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Phishing"
+        }
+      ]
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-use tauri::{plugin::{Builder, TauriPlugin}, Runtime};
+use tauri::{plugin::{Builder, TauriPlugin}, Runtime, RunEvent};
 
 /// Creates a plugin that handles all navigation and page load events
 /// 
@@ -11,7 +11,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("navigation-handler")
         .on_navigation(|webview, url| {
             println!("NavigationStarting on webview '{}': {}", webview.label(), url);
-            true // Allow navigation
+            true // Allow navigation return false to avoid
         })
         .on_page_load(|webview, payload| {
             println!("NavigationCompleted on webview '{}': {} (event: {:?})", 

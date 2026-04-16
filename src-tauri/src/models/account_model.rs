@@ -1,6 +1,3 @@
-// src/models/account_model.rs
-
-// src/models/account_model.rs
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -12,4 +12,5 @@
  * @since         0.7.0
  */
 
+window.chrome = window.chrome || {};
 global.browser = window.chrome;

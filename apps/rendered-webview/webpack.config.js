@@ -91,11 +91,11 @@ module.exports = {
       rules: [
         {
           search: '/webAccessibleResources/',
-          replace: 'https://rendered.dist/Rendered/'
+          replace: '/apps/rendered-webview/'
         },
         {
-          search: 'https://rendered.dist/Rendered/dist/locales/{{lng}}/',
-          replace: 'https://rendered.dist/Rendered/dist/locales/passbolt-{{lng}}/'
+          search: '/dist/locales/{{lng}}/',
+          replace: '/apps/rendered-webview/dist/locales/passbolt-{{lng}}/'
         },
       ]
     }]),

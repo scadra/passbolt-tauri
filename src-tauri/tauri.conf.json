@@ -11,6 +11,12 @@
   },
   "app": {
     "security": {
+      "pattern": {
+        "use": "isolation",
+        "options": {
+          "dir": "../src/isolation"
+        }
+      },
       "csp": null
     }
   },

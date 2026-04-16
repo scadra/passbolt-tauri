@@ -44,6 +44,7 @@
   "dependencies": {
     "@babel/core": "^7.23.3",
     "@babel/preset-react": "^7.22.15",
+    "@tauri-apps/api": "^2.6.0",
     "buffer": "^6.0.3",
     "formdata-node": "^6.0.3",
     "openpgp": "^6.1.1",

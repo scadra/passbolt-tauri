@@ -40,6 +40,7 @@ class AppImport extends Component {
 
   async componentDidMount() {
     await localStorage.clear();
+    await this.listen();
   }
 
   /**
@@ -55,6 +56,13 @@ class AppImport extends Component {
       },
     };
   }
+  /**
+   * listen events
+   */
+  async listen() {
+    await localStorage.clear();
+    this.props.port.request("passbolt.rendered.is-ready");
+  }
 
 
   /**
@@ -64,7 +72,7 @@ class AppImport extends Component {
     return (
       <RenderedWebview port={this.props.port}>
         <AppContext.Provider value={this.state}>
-          <TranslationProvider loadingPath="https://rendered.dist/Rendered/dist/locales/{{lng}}/{{ns}}.json">
+          <TranslationProvider loadingPath="/apps/rendered-webview/dist/locales/{{lng}}/{{ns}}.json">
             <Router>
               <div id="container" className="container page login">
                 <div className="content">

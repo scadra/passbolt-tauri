@@ -40,6 +40,7 @@ class VerifyAccountKitController {
   async _exec(encodedAccountKit) {
     try {
       const accountKit = await this.exec(encodedAccountKit);
+      console.log("send")
       this.worker.port.emit(this.requestId, 'SUCCESS', accountKit);
     } catch (error) {
       console.error(error);

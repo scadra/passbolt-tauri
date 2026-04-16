@@ -18,6 +18,7 @@ import React from "react";
 import ReactDOM from "react-dom";
 import WebviewStorage from "./src/shared/WebviewStorage";
 import "./src/polyfill/dragAndDropPolyfill"
+import "./src/polyfill/externalLinkPolyfill"
 
 export async function main() {
     // Port connection

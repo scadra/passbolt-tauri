@@ -38,8 +38,11 @@
 
       this.theme = await this.getTheme();
       const cssFile = cssInfoTag.dataset.file;
+      console.log(this.theme)
+      console.log(cssInfoTag.dataset)
+      console.log(this.theme)
 
-      this.getLinkTag().setAttribute("href", `https://rendered.dist/Rendered/dist/themes/${this.theme}/${cssFile}`);
+      this.getLinkTag().setAttribute("href", `/apps/rendered-webview/dist/themes/${this.theme}/${cssFile}`);
     }
 
     async getStorage(key) {

@@ -81,7 +81,7 @@ class AppWorkspace extends Component {
         {this.isReady() && <ExtAppContextProvider port={this.props.port} storage={this.props.storage}>
           <AppContext.Consumer>
             {() =>
-              <TranslationProvider loadingPath="https://rendered.dist/Rendered/dist/locales/{{lng}}/{{ns}}.json">
+              <TranslationProvider loadingPath="/apps/rendered-webview/dist/locales/{{lng}}/{{ns}}.json">
                 <RbacContextProvider>
                   <AccountRecoveryUserContextProvider accountRecoveryUserService={accountRecoveryUserService}>
                     <PasswordPoliciesContext>

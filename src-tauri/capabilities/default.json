@@ -2,9 +2,26 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capability for the main window",
-  "windows": ["main"],
+  "windows": ["main", "rendered-webview", "background-webview"],
   "permissions": [
     "opener:default",
+    "core:default",
+    {
+      "identifier": "core:event:allow-listen",
+      "allow": [
+        {
+          "windows": ["background-webview", "rendered-webview"]
+        }
+      ]
+    },
+    {
+      "identifier": "core:event:allow-emit",
+      "allow": [
+        {
+          "windows": ["background-webview", "rendered-webview"]
+        }
+      ]
+    },
     {
       "identifier": "opener:allow-open-url",
       "allow": [

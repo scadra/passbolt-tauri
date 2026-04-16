@@ -53,7 +53,7 @@ import KeepSessionAliveService from 'passbolt-browser-extension/src/all/backgrou
 import {AccountEvents} from 'passbolt-browser-extension/src/all/background_page/event/accountEvents';
 import {PermissionEvents} from 'passbolt-browser-extension/src/all/background_page/event/permissionEvents';
 import {MetadataEvents} from './events/metadataEvents';
-
+import { emit } from '@tauri-apps/api/event';
 /**
  * Represents the main workspace class that sets up an event listener for the `message` event.
  * @class
@@ -129,6 +129,6 @@ export default class MainWorkspace {
     PasswordPoliciesEvents.listen(this.worker, apiClientOptions, account);
     PermissionEvents.listen(this.worker, apiClientOptions, account);
     UserPassphrasePolicies.listen(this.worker);
-    window.chrome.webview.postMessage(JSON.stringify({topic: BACKGROUND_READY}));
+    await emit(BACKGROUND_READY, {});
   }
 }

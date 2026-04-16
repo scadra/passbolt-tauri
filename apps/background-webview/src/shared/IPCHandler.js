@@ -12,71 +12,65 @@
  * @since         0.0.1
  */
 
-import {v4 as uuidv4} from "uuid";
+import { listen, emit as tauriEmit } from '@tauri-apps/api/event';
+import { v4 as uuidv4 } from "uuid";
 
 class IPCHandler {
   constructor() {
-    this._port = {name: "main", sender: {tab: 0}, onDisconnect: {addListener: () => {}}};
     this._listeners = {};
+    this._eventListeners = new Map();
     this.initListener();
   }
 
-  /**
-   * Init listener
-   * @private
-   */
-  initListener() {
-    window.chrome.webview.addEventListener("message", event => {
-      if (event) {
-        this._onMessage(event);
-      }
+  async initListener() {
+    const unlisten = await listen('background-ipc-forward', (event) => {
+      this._onMessage(event);
     });
+    this._globalUnlisten = unlisten;
+    // Signal Rust that we're ready to receive messages
+    await tauriEmit('background-ipc-message', {topic: 'passbolt.background.listener-ready'});
   }
 
-
-  /**
-   * When a message is received on the ICP channel
-   * Triggers all the callback associated with that message name
-   *
-   * @param json
-   * @private
-   */
-  _onMessage(json) {
-    const event = json.data;
-    const eventName = event.topic ? event.topic : event.requestId;
+  _onMessage(event) {
+    const eventData = event.payload;
+    const eventName = eventData.topic ? eventData.topic : eventData.requestId;
+    
     if (Array.isArray(this._listeners[eventName])) {
       const listeners = this._listeners[eventName];
       for (let i = 0; i < listeners.length; i++) {
         const listener = listeners[i];
-        if (event.requestId) {
-          const args = Array.isArray(event.message) ? [event.requestId, ...event.message] : [event.requestId, event.message];
+        if (eventData.requestId) {
+          let args;
+          if (Array.isArray(eventData.message)) {
+            args = [eventData.requestId, ...eventData.message];
+          } else if (eventData.withMultipleParam) {
+            try {
+              args = [eventData.requestId].concat(JSON.parse(eventData.message));
+            } catch (error) {
+              console.error(error);
+              throw error;
+            }
+          } else {
+            args = [eventData.requestId, eventData.message];
+          }
           listener.callback.apply(this, args);
-        } else if (event.status) {
-          const args = Array.isArray(event.message) ? [event.status, ...event.message] : [event.status, event.message];
-          listener.callback.apply(this, args);
+        } else if (eventData.status) {
+          listener.callback.apply(this, [eventData.status, eventData.message]);
         } else {
-          listener.callback.apply(this, [event.message]);
+          const message = Array.isArray(eventData.message) ? eventData.message : [eventData.message];
+          listener.callback.apply(this, message);
         }
         if (listener.once) {
           this._listeners[eventName].splice(i, 1);
-          // delete the listener if empty array
           if (this._listeners[eventName].length === 0) {
             delete this._listeners[eventName];
           }
-          i--; // jump back since i++ is the new i
+          i--;
         }
       }
     }
   }
 
-  /**
-   * Add listener for a message name on the current IPC Channel
-   *
-   * @param name string
-   * @param callback function
-   * @param once bool
-   * @private
-   */
   _addListener(name, callback, once) {
     if (!Array.isArray(this._listeners[name])) {
       this._listeners[name] = [];
@@ -88,50 +82,28 @@ class IPCHandler {
     });
   }
 
-  /**
-   * On message name triggers a callback
-   *
-   * @param name
-   * @param callback
-   */
   on(name, callback) {
     this._addListener(name, callback, false);
   }
 
-  /**
-   * On message name triggers a callback only once,
-   * e.g. remove the listener once the message has been received
-   *
-   * @param name
-   * @param callback
-   */
   once(name, callback) {
     this._addListener(name, callback, true);
   }
 
-  /**
-   * Emit a message to the addon code
-   * @param requestArgs the arguments
-   */
   async emit(...requestArgs) {
     let ipc;
+
     if (typeof requestArgs[0] === 'string') {
       let status, message;
 
       if (requestArgs[1] === 'SUCCESS' || requestArgs[1] === 'ERROR') {
         status = requestArgs[1];
-        const body = requestArgs.length > 2 ? requestArgs[2] : null;
-        message = requestArgs[1] === 'ERROR' ? this.mapError(body) : body;
+        message = requestArgs.length > 2 ? requestArgs[2] : null;
       } else {
         status = null;
-        /*
-         * We can have more than one message so we send the array without the first item dedicated to topic
-         * In case we do not have more we send the last args
-         */
-        message = requestArgs.length > 2 ? requestArgs.slice(1) : requestArgs[1];
+        message = requestArgs[1];
       }
       ipc = {
-        //Index 0 is dedicated to topic IPC
         topic: requestArgs[0],
         status: status,
         message: message
@@ -139,54 +111,15 @@ class IPCHandler {
     } else {
       ipc = requestArgs[0];
     }
-    -
-    window.chrome.webview.postMessage(JSON.stringify(ipc));
+    
+    await tauriEmit('background-ipc-message', ipc);
   }
 
-  /**
-   * Map the error message to an object
-   * @param {*} error
-   * @returns the error message as an object
-   */
-  mapError(error) {
-    let ipcError;
-    try {
-      //We test if the error inherit from Error and have access to toJSON method
-      ipcError = error.toJSON();
-    } catch {
-      //In case toJSON method does not exist we fallback to send the error as a JS Object through IPC
-      ipcError = {
-        message: error?.message,
-        name: error?.name,
-        code: error?.code,
-        details: error?.details,
-        stack: error?.stack,
-      };
-    }
-    return ipcError;
-  }
-
-  /**
-   * Emit a request to the addon code and expect a response.
-   * @param topic the topic message
-   * @param args the arguments
-   * @return Promise
-   */
-  request(topic, ...args) {
-    // Generate a request id that will be used by the addon to answer this request.
+  async request(message, ...args) {
     const requestId = uuidv4();
-    // Request can have 0 and more params to pass
-    const withMultipleParam = args.length > 1;
-    // In case we just have one param we take only the payload passed
-    const message = withMultipleParam  ? JSON.stringify(args) : args[0];
-    // Add the requestId to the request parameters.
-    const requestArgs = [{topic, requestId, message, withMultipleParam}];
-    // The promise that is return when you call passbolt.request.
+    const requestArgs = [{topic: message, requestId: requestId, message: args}];
+
     return new Promise((resolve, reject) => {
-      /*
-       * Observe when the request has been completed.
-       * Or if a progress notification is sent.
-       */
       this.once(requestId, (status, ...callbackArgs) => {
         if (status === 'SUCCESS') {
           resolve.apply(null, callbackArgs);
@@ -194,9 +127,18 @@ class IPCHandler {
           reject.apply(null, callbackArgs);
         }
       });
-      // Emit the message to the addon-code.
+      
       this.emit.apply(this, requestArgs);
     });
+  }
+
+  destroy() {
+    if (this._globalUnlisten) {
+      this._globalUnlisten();
+    }
+    this._eventListeners.forEach(unlisten => unlisten());
+    this._eventListeners.clear();
+    this._listeners = {};
   }
 }
 

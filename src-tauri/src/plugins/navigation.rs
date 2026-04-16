@@ -1,24 +1,23 @@
-use tauri::{plugin::{Builder, TauriPlugin}, Runtime, RunEvent};
+use tauri::{plugin::{Builder, TauriPlugin}, Runtime};
+use log::info;
 
-/// Creates a plugin that handles all navigation and page load events
-/// 
-/// This plugin provides global navigation event handling for all webviews in the application.
-/// It captures navigation start, completion, and webview creation events.
-/// 
-/// # Returns
-/// * `TauriPlugin<R>` - A configured Tauri plugin for navigation handling
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     Builder::new("navigation-handler")
         .on_navigation(|webview, url| {
-            println!("NavigationStarting on webview '{}': {}", webview.label(), url);
-            true // Allow navigation return false to avoid
+            info!("NavigationStarting on webview '{}': {}", webview.label(), url);
+            true
         })
         .on_page_load(|webview, payload| {
-            println!("NavigationCompleted on webview '{}': {} (event: {:?})", 
-                webview.label(), payload.url(), payload.event());
+            let label = webview.label().to_string();
+            let url = payload.url().to_string();
+            let event = payload.event();
+
+            if matches!(event, tauri::webview::PageLoadEvent::Finished) {
+                info!("[Navigation] Page loaded: '{}' → {}", label, url);
+            }
         })
         .on_webview_ready(|webview| {
-            println!("WebviewReady: {}", webview.label());
+            info!("WebviewReady: {}", webview.label());
         })
         .build()
 }

@@ -49,6 +49,7 @@ class AppAuthentication extends Component {
   async listen() {
     await localStorage.clear();
     this.props.port.on("passbolt.background.is-ready", this.handleBackgroundReady);
+    this.props.port.emit("passbolt.rendered.is-ready");
   }
 
   /**
@@ -150,7 +151,7 @@ class AppAuthentication extends Component {
     return (
       <RenderedWebview port={this.props.port}>
         {this.state.isReady && <AppContext.Provider value={this.state}>
-          <TranslationProvider loadingPath="https://rendered.dist/Rendered/dist/locales/{{lng}}/{{ns}}.json">
+          <TranslationProvider loadingPath="/apps/rendered-webview/dist/locales/{{lng}}/{{ns}}.json">
             <Router>
               <AuthenticationLoginContextProvider>
                 <div id="container" className="container page login">

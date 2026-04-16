@@ -13,6 +13,7 @@
  */
 
 import {LOCALSTORAGE_CLEAR, LOCALSTORAGE_DELETE, LOCALSTORAGE_UPDATE} from "../enumerations/appEventEnumeration";
+import { emit } from '@tauri-apps/api/event';
 
 /**
  * Polyfill to match the webview storage with the bext storage
@@ -85,8 +86,8 @@ class StoragePolyfill {
    * @param {string} key
    * @returns
    */
-  onStorageCleared() {
-    window.chrome.webview.postMessage(JSON.stringify({topic: LOCALSTORAGE_CLEAR}));
+  async onStorageCleared() {
+    await emit('background-ipc-message', {topic: LOCALSTORAGE_CLEAR});
   }
 
   /**
@@ -94,8 +95,8 @@ class StoragePolyfill {
    * @param {string} key
    * @returns
    */
-  onStorageDelete(key) {
-    window.chrome.webview.postMessage(JSON.stringify({topic: LOCALSTORAGE_DELETE, message: key}));
+  async onStorageDelete(key) {
+    await emit('background-ipc-message', {topic: LOCALSTORAGE_DELETE, message: key});
   }
 
   /**
@@ -103,8 +104,8 @@ class StoragePolyfill {
    * @param {string} key
    * @returns
    */
-  onStorageChanges(key, value) {
-    window.chrome.webview.postMessage(JSON.stringify({topic: LOCALSTORAGE_UPDATE, message: {key, value}}));
+  async onStorageChanges(key, value) {
+    await emit('background-ipc-message', {topic: LOCALSTORAGE_UPDATE, message: {key, value}});
   }
 }
 

@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:all": "cd apps/background-webview && npm install && npm run build && cd apps/background-background && npm install && npm run build",
+    "build:webviews": "cd apps/background-webview && npm run build && cd ../../apps/rendered-webview && npm run build",
+    "build:all": "cd apps/background-webview && npm install && npm run build && cd ../../apps/rendered-webview && npm install && npm run build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "tauri:dev": "RUST_LOG=debug tauri dev",
+    "tauri:dev:trace": "RUST_LOG=trace tauri dev"
   },
   "dependencies": {
     "react": "^18.3.1",

@@ -68,7 +68,7 @@ class ExportResourcesFileService {
 
     const blobFile = new Blob([exportEntity.file], {type: mimeType});
     const content = await FileService.blobToDataURL(blobFile);
-    window.chrome.webview.postMessage(JSON.stringify({topic: DOWNLOAD_FILE, message: {content, filename}}));
+    await emit(DOWNLOAD_FILE, {content, filename});
   }
 }
 

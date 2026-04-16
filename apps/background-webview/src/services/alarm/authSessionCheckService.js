@@ -12,17 +12,12 @@
  * @since         1.1.0
  */
 
+import { emit } from '@tauri-apps/api/event';
 import CheckAuthStatusService from "passbolt-browser-extension/src/all/background_page/service/auth/checkAuthStatusService";
 
 const AUTH_SESSION_CHECK_ALARM = "AuthSessionCheck";
 
 class AuthSessionCheckService {
-  /**
-   * Check if the user is authenticated when the AuthSessionCheck alarm triggers.
-   * @param {Alarm} alarm
-   * @returns {Promise<void>}
-   * @private
-   */
   static async handleAuthStatusCheckAlarm(alarm) {
     if (alarm.name !== AuthSessionCheckService.ALARM_NAME) {
       return;
@@ -31,14 +26,10 @@ class AuthSessionCheckService {
     const checkAuthService = new CheckAuthStatusService();
     const authStatus = await checkAuthService.checkAuthStatus(true);
     if (!authStatus.isAuthenticated) {
-      window.chrome.webview.postMessage(JSON.stringify({topic: "passbolt.auth.after-logout"}));
+      await emit("passbolt.auth.after-logout", {});
     }
   }
 
-  /**
-   * Returns the alarm names that this service handles
-   * @return {string}
-   */
   static get ALARM_NAME() {
     return AUTH_SESSION_CHECK_ALARM;
   }

@@ -24,15 +24,14 @@ import {SecretEvents} from 'passbolt-browser-extension/src/all/background_page/e
 import {ShareEvents} from 'passbolt-browser-extension/src/all/background_page/event/shareEvents';
 import {CommentEvents} from 'passbolt-browser-extension/src/all/background_page/event/commentEvents';
 import {ActionLogEvents} from 'passbolt-browser-extension/src/all/background_page/event/actionLogEvents';
-import {TagEvents} from 'passbolt-browser-extension/src/all/background_page/event/tagEvents';
-import {FavoriteEvents} from 'passbolt-browser-extension/src/all/background_page/event/favoriteEvents';
+import {TagEvents} from './events/tagEvents';
 import {PasswordPoliciesEvents} from 'passbolt-browser-extension/src/all/background_page/event/passwordPoliciesEvents';
 import {PownedPasswordEvents} from 'passbolt-browser-extension/src/all/background_page/event/pownedPasswordEvents';
 import {ImportResourcesEvents} from 'passbolt-browser-extension/src/all/background_page/event/importResourcesEvents';
 import {AccountRecoveryEvents} from './events/accountRecoveryEvents';
 import {ExportResourcesEvents} from './events/exportResourcesEvents';
 import {RbacEvents} from './events/rbacEvents';
-import {BACKGROUND_READY} from './enumerations/appEventEnumeration';
+import {BACKGROUND_READY, CLIPBOARD_SET_TEXT} from './enumerations/appEventEnumeration';
 import GetLegacyAccountService from "passbolt-browser-extension/src/all/background_page/service/account/getLegacyAccountService";
 import {Config} from "passbolt-browser-extension/src/all/background_page/model/config";
 import {DesktopEvents} from './events/desktopEvents';
@@ -42,6 +41,7 @@ import {MultiFactorAuthenticationEvents} from 'passbolt-browser-extension/src/al
 import {ThemeEvents} from './events/themeEvents';
 import {UserEvents} from './events/userEvents';
 import {AuthEvents} from './events/authEvents';
+import {ClipboardEvents} from './events/clipboardEvents';
 import {UserPassphrasePolicies} from './events/userPassphrasePolicies';
 import {KeyringEvents} from './events/keyringEvents';
 import {LocaleEvents} from './events/localeEvents';
@@ -53,7 +53,9 @@ import KeepSessionAliveService from 'passbolt-browser-extension/src/all/backgrou
 import {AccountEvents} from 'passbolt-browser-extension/src/all/background_page/event/accountEvents';
 import {PermissionEvents} from 'passbolt-browser-extension/src/all/background_page/event/permissionEvents';
 import {MetadataEvents} from './events/metadataEvents';
-import { emit } from '@tauri-apps/api/event';
+import {FavoriteEvents} from './events/favoriteEvents';
+import {SecretHistoryEvents} from './events/secretHistoryEvents';
+
 /**
  * Represents the main workspace class that sets up an event listener for the `message` event.
  * @class
@@ -74,13 +76,14 @@ export default class MainWorkspace {
    */
   async initWorkspace() {
     await this.initStorage();
-    this.worker = {port: new IPCHandler()};
+    this.worker = {port: IPCHandler.getInstance()};
 
     await this.listenToEvents();
     StartLoopAuthSessionCheckService.exec();
     KeepSessionAliveService.start();
     browser.alarms.onAlarm.removeListener(GlobalAlarmService.exec);
     browser.alarms.onAlarm.addListener(GlobalAlarmService.exec);
+    navigator.clipboard.writeText = async data => await this.worker.port.emit(CLIPBOARD_SET_TEXT, data);
   }
 
   /**
@@ -101,10 +104,11 @@ export default class MainWorkspace {
     AuthEvents.listen(this.worker);
     AccountRecoveryEvents.listen(this.worker, account);
     ActionLogEvents.listen(this.worker, apiClientOptions);
+    ClipboardEvents.listen(this.worker);
     CommentEvents.listen(this.worker, apiClientOptions);
     ConfigEvents.listen(this.worker);
     DesktopEvents.listen(this.worker, apiClientOptions, account);
-    ExportResourcesEvents.listen(this.worker, account);
+    ExportResourcesEvents.listen(this.worker, apiClientOptions, account);
     FavoriteEvents.listen(this.worker, apiClientOptions, account);
     FolderEvents.listen(this.worker, apiClientOptions, account);
     GroupEvents.listen(this.worker, apiClientOptions, account);
@@ -116,19 +120,20 @@ export default class MainWorkspace {
     MultiFactorAuthenticationEvents.listen(this.worker, apiClientOptions);
     OrganizationSettingsEvents.listen(this.worker);
     PownedPasswordEvents.listen(this.worker);
-    UserEvents.listen(this.worker, null, account);
+    UserEvents.listen(this.worker, apiClientOptions, account);
     RbacEvents.listen(this.worker, account);
     ResourceEvents.listen(this.worker, apiClientOptions, account);
     ResourceTypeEvents.listen(this.worker, apiClientOptions);
-    RoleEvents.listen(this.worker, apiClientOptions);
+    RoleEvents.listen(this.worker, apiClientOptions, account);
     SecretEvents.listen(this.worker, apiClientOptions, account);
+    SecretHistoryEvents.listen(this.worker, apiClientOptions, account);
     ShareEvents.listen(this.worker, apiClientOptions, account);
-    TagEvents.listen(this.worker, apiClientOptions, account);
+    TagEvents.listen(this.worker, apiClientOptions);
     ThemeEvents.listen(this.worker);
     PasswordExpiryEvents.listen(this.worker, apiClientOptions, account);
     PasswordPoliciesEvents.listen(this.worker, apiClientOptions, account);
     PermissionEvents.listen(this.worker, apiClientOptions, account);
     UserPassphrasePolicies.listen(this.worker);
-    await emit(BACKGROUND_READY, {});
+    this.worker.port.emit(BACKGROUND_READY);
   }
 }

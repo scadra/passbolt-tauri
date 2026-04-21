@@ -15,10 +15,27 @@
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event';
 import { v4 as uuidv4 } from "uuid";
 
+let _instance = null;
+
 class IPCHandler {
+  /**
+   * Returns the singleton instance. Only one IPCHandler should exist per webview
+   * to avoid duplicate `listener-ready` signals and double account kit delivery.
+   */
+  static getInstance() {
+    if (!_instance) {
+      _instance = new IPCHandler();
+    }
+    return _instance;
+  }
+
   constructor() {
     this._listeners = {};
     this._eventListeners = new Map();
+    this._pendingRequestIds = new Set();
+    this._activeRequests = 0;
+    this._maxConcurrentRequests = 1;
+    this._requestQueue = [];
     this.initListener();
   }
 
@@ -27,21 +44,23 @@ class IPCHandler {
       this._onMessage(event);
     });
     this._globalUnlisten = unlisten;
-    // Signal Rust that we're ready to receive messages
     await tauriEmit('background-ipc-message', {topic: 'passbolt.background.listener-ready'});
   }
 
   _onMessage(event) {
     const eventData = event.payload;
     const eventName = eventData.topic ? eventData.topic : eventData.requestId;
-    
+    console.log('[Background IPC] Received event:', eventName, 'message:', eventData.message, 'hasListeners:', Array.isArray(this._listeners[eventName]));
+
     if (Array.isArray(this._listeners[eventName])) {
       const listeners = this._listeners[eventName];
       for (let i = 0; i < listeners.length; i++) {
         const listener = listeners[i];
         if (eventData.requestId) {
           let args;
-          if (Array.isArray(eventData.message)) {
+          if (eventData.status) {
+            args = [eventData.status, eventData.message];
+          } else if (Array.isArray(eventData.message)) {
             args = [eventData.requestId, ...eventData.message];
           } else if (eventData.withMultipleParam) {
             try {
@@ -106,28 +125,50 @@ class IPCHandler {
       ipc = {
         topic: requestArgs[0],
         status: status,
-        message: message
+        message: message !== undefined ? JSON.parse(JSON.stringify(message)) : null
       };
     } else {
       ipc = requestArgs[0];
     }
-    
+
     await tauriEmit('background-ipc-message', ipc);
   }
 
+  _releaseRequestSlot(requestId) {
+    if (!this._pendingRequestIds.delete(requestId)) {
+      return;
+    }
+    this._activeRequests--;
+    if (this._requestQueue.length > 0) {
+      const next = this._requestQueue.shift();
+      next();
+    }
+  }
+
   async request(message, ...args) {
+    if (this._activeRequests >= this._maxConcurrentRequests) {
+      await new Promise(resolve => this._requestQueue.push(resolve));
+    }
+    this._activeRequests++;
+
     const requestId = uuidv4();
+    this._pendingRequestIds.add(requestId);
+
+    // Safety: release slot after 1s if no response (prevents deadlock)
+    setTimeout(() => this._releaseRequestSlot(requestId), 1000);
+
     const requestArgs = [{topic: message, requestId: requestId, message: args}];
 
     return new Promise((resolve, reject) => {
       this.once(requestId, (status, ...callbackArgs) => {
+        this._releaseRequestSlot(requestId);
         if (status === 'SUCCESS') {
           resolve.apply(null, callbackArgs);
         } else if (status === 'ERROR') {
           reject.apply(null, callbackArgs);
         }
       });
-      
+
       this.emit.apply(this, requestArgs);
     });
   }

@@ -10,7 +10,8 @@
     "build:all": "cd apps/background-webview && npm install && npm run build && cd ../../apps/rendered-webview && npm install && npm run build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "RUST_LOG=debug tauri dev",
+    "tauri:dev": "RUST_LOG=warn,passbolt_app=info tauri dev",
+    "tauri:dev:debug": "RUST_LOG=debug tauri dev",
     "tauri:dev:trace": "RUST_LOG=trace tauri dev"
   },
   "dependencies": {

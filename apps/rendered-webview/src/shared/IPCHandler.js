@@ -19,6 +19,10 @@ class IPCHandler {
   constructor() {
     this._listeners = {};
     this._eventListeners = new Map();
+    this._pendingRequestIds = new Set();
+    this._activeRequests = 0;
+    this._maxConcurrentRequests = 1;
+    this._requestQueue = [];
     this.initListener();
   }
 
@@ -32,7 +36,7 @@ class IPCHandler {
   _onMessage(event) {
     const eventData = event.payload;
     const eventName = eventData.topic ? eventData.topic : eventData.requestId;
-    console.log('[Rendered IPC] Received event:', eventName, 'status:', eventData.status, 'hasListeners:', Array.isArray(this._listeners[eventName]));
+    console.log('[Rendered IPC] Received event:', eventName, 'message:', eventData.message, 'hasListeners:', Array.isArray(this._listeners[eventName]));
 
     if (Array.isArray(this._listeners[eventName])) {
       const listeners = this._listeners[eventName];
@@ -40,7 +44,9 @@ class IPCHandler {
         const listener = listeners[i];
         if (eventData.requestId) {
           let args;
-          if (Array.isArray(eventData.message)) {
+          if (eventData.status) {
+            args = [eventData.status, eventData.message];
+          } else if (Array.isArray(eventData.message)) {
             args = [eventData.requestId, ...eventData.message];
           } else if (eventData.withMultipleParam) {
             try {
@@ -110,24 +116,46 @@ class IPCHandler {
     } else {
       ipc = requestArgs[0];
     }
-    
+
     await tauriEmit('rendered-ipc-message', ipc);
   }
 
+  _releaseRequestSlot(requestId) {
+    if (!this._pendingRequestIds.delete(requestId)) {
+      return;
+    }
+    this._activeRequests--;
+    if (this._requestQueue.length > 0) {
+      const next = this._requestQueue.shift();
+      next();
+    }
+  }
+
   async request(message, ...args) {
+    if (this._activeRequests >= this._maxConcurrentRequests) {
+      await new Promise(resolve => this._requestQueue.push(resolve));
+    }
+    this._activeRequests++;
+
     const requestId = uuidv4();
-    console.log('[Rendered IPC] request() topic:', message, 'requestId:', requestId);
+    this._pendingRequestIds.add(requestId);
+
+    // Safety: release slot after 1s if no response (prevents deadlock)
+    setTimeout(() => this._releaseRequestSlot(requestId), 1000);
+
     const requestArgs = [{topic: message, requestId: requestId, message: args}];
 
     return new Promise((resolve, reject) => {
       this.once(requestId, (status, ...callbackArgs) => {
+        this._releaseRequestSlot(requestId);
         if (status === 'SUCCESS') {
           resolve.apply(null, callbackArgs);
         } else if (status === 'ERROR') {
+          console.error('[Rendered IPC] request() ERROR topic:', message, 'error:', callbackArgs);
           reject.apply(null, callbackArgs);
         }
       });
-      
+
       this.emit.apply(this, requestArgs);
     });
   }

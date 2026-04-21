@@ -34,7 +34,7 @@ export default class MainAuth {
    * @constructor
    */
   constructor() {
-    this.worker = {port: new IPCHandler()};
+    this.worker = {port: IPCHandler.getInstance()};
     //Listen account setting event
     this.waitForAccountInstanciation();
   }
@@ -44,6 +44,8 @@ export default class MainAuth {
    */
   waitForAccountInstanciation() {
     this.worker.port.on('passbolt.account.set-current', async(requestId, account) => {
+      console.log(requestId)
+      console.log(account)
       const prefixToKeep = 'resourceGridUserSetting-';
 
       const entriesToKeep = {};

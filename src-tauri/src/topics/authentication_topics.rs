@@ -9,4 +9,5 @@ define_topics!(AuthenticationTopics {
     LOG_OUT => "passbolt.auth.logout",
     POST_LOGIN_REDIRECT => "passbolt.auth.post-login-redirect",
     REQUIRE_MFA => "passbolt.auth.redirect-to-mfa",
+    DESKTOP_AUTHENTICATE_DESKTOP => "passbolt.desktop.authenticate",
 });

@@ -28,7 +28,7 @@ export default class MainImport {
    * @constructor
    */
   constructor() {
-    this.worker = {port: new IPCHandler()};
+    this.worker = {port: IPCHandler.getInstance()};
     this.listen();
   }
 

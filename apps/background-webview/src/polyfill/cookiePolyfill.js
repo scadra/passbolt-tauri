@@ -19,7 +19,7 @@ import IPCHandler from "../shared/IPCHandler";
  */
 class CookiePolyfill {
   constructor() {
-    this.port = new IPCHandler();
+    this.port = IPCHandler.getInstance();
   }
 
   /**

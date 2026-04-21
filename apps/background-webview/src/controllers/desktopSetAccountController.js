@@ -50,17 +50,19 @@ class DesktopSetAccountController {
    * @return {Promise<void>}
    */
   async exec() {
-    const kit = JSON.parse(this.accountKit);
+    console.log("worker", this.worker)
+    console.log("requestId", this.requestId)
+    console.log("accountKit", this.accountKit)
 
-    const accountDto = new AccountEntity({...kit.accountMetaData, ...kit.accountSecret});
+    const accountDto = new AccountEntity({...this.accountKit.accountMetaData, ...this.accountKit.accountSecret});
     this.initPassboltDataLocalStorageService = new InitPassboltDataLocalStorageService();
     await this.initPassboltDataLocalStorageService.initPassboltData(accountDto);
     await Config.init();
-    if (kit.accountMetaData?.theme) {
-      Config.write('user.settings.theme', kit.accountMetaData.theme);
+    if (this.accountKit.accountMetaData?.theme) {
+      Config.write('user.settings.theme', this.accountKit.accountMetaData.theme);
     }
-    if (kit.accountMetaData?.locale) {
-      Config.write('user.settings.locale', kit.accountMetaData.locale);
+    if (this.accountKit.accountMetaData?.locale) {
+      Config.write('user.settings.locale', this.accountKit.accountMetaData.locale);
     }
     //Call the main process
     this.worker.port.emit(BACKGROUND_READY);

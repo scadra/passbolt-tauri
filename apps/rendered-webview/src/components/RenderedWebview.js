@@ -60,9 +60,9 @@ class RenderedWebview extends React.Component {
    * handle the localstorage updates
    * @param {object} data
    */
-  handleLocalStorageUpdate(requestId, data) {
+  handleLocalStorageUpdate(data) {
     try {
-      const {key, value} = JSON.parse(data);
+      const {key, value} = data;
       localStorage.setItem(key, value);
 
       if (key === "resources" && !this.state.isReady) {
@@ -87,7 +87,7 @@ class RenderedWebview extends React.Component {
    * @param {object} data
    */
   handleLocalStorageDelete(data) {
-    const {key} = JSON.parse(data);
+    const key = typeof data === 'object' ? data.key : data;
     localStorage.removeItem(key);
   }
 

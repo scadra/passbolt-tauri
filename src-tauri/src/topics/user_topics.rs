@@ -9,4 +9,5 @@ define_topics!(UserTopics {
     RESEND_INVITE => "passbolt.users.resend-invite",
     UPDATE_SECURITY_TOKEN => "passbolt.users.update-security-token",
     UPDATE_PRIVATE_KEY => "passbolt.user.update-private-key",
+    UPDATE_AVATAR => "passbolt.users.update-avatar",
 });

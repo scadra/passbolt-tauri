@@ -61,15 +61,13 @@ class AppAuthentication extends Component {
 
   /**
    * handle the background webview to be ready
-   * @param {object} data
    */
   async handleBackgroundReady() {
-    this.removeSkeleton();
-    await this.initializeUserSettings();
-    await this.getSiteSettings();
-    await this.getExtensionVersion();
-    this.initLocale();
-    this.setState({isReady: true});
+      this.removeSkeleton();
+      this.initializeUserSettings();
+      await this.getSiteSettings();
+      await this.getExtensionVersion();
+      await this.initLocale();
   }
 
   /**
@@ -87,27 +85,54 @@ class AppAuthentication extends Component {
    */
   defaultState(props) {
     return {
-      port: props.port, // The background page communication port
-      storage: props.storage, // The storage
-      siteSettings: null, // The site settings
-      extensionVersion: null, // The extension version
-      locale: null, // The locale
-      isReady: false, // Check if component is ready to be displayed
-      // Locale
+      port: props.port,
+      storage: props.storage,
+      userSettings: null,
+      siteSettings: null,
+      extensionVersion: null,
+      locale: null,
       onUpdateLocaleRequested: this.onUpdateLocaleRequested.bind(this),
     };
   }
 
   /**
+   * Check if all required state is initialized before rendering.
+   */
+  get isReady() {
+    console.log("this.state.userSettings", this.state.userSettings)
+    console.log("this.state.siteSettings", this.state.siteSettings)
+    console.log("this.state.extensionVersion", this.state.extensionVersion)
+    console.log("this.state.locale", this.state.locale)
+    return Boolean(
+      this.state.userSettings
+      && this.state.siteSettings
+      && this.state.extensionVersion
+      && this.state.locale
+    );
+  }
+
+  /**
    * Initialize the user settings.
-   * @returns {Promise<void>}
+   * Reads _passbolt_data from localStorage. If not yet synced from Background
+   * (storagePolyfill 50ms debounce), listens for the StorageEvent and retries.
    */
   async initializeUserSettings() {
     const storageData = await this.props.storage.local.get(["_passbolt_data"]);
     if (storageData._passbolt_data?.config) {
-      const userSettings = new UserSettings(storageData._passbolt_data.config);
-      await this.setState({userSettings});
+      this.setState({userSettings: new UserSettings(storageData._passbolt_data.config)});
+      return;
     }
+    const handler = async (e) => {
+      if (e.key === '_passbolt_data') {
+        console.log("received")
+        window.removeEventListener('storage', handler);
+        const data = await this.props.storage.local.get(["_passbolt_data"]);
+        if (data._passbolt_data?.config) {
+          this.setState({userSettings: new UserSettings(data._passbolt_data.config)});
+        }
+      }
+    };
+    window.addEventListener('storage', handler);
   }
 
   /**
@@ -116,6 +141,7 @@ class AppAuthentication extends Component {
    */
   async getSiteSettings() {
     const settings = await this.props.port.request("passbolt.organization-settings.get");
+    console.log(settings)
     const siteSettings = new SiteSettings(settings);
     this.setState({siteSettings});
   }
@@ -132,7 +158,8 @@ class AppAuthentication extends Component {
    * Init the locale
    */
   async initLocale() {
-    const {locale} = await this.props.port.request("passbolt.locale.get");
+    const result = await this.props.port.request("passbolt.locale.get");
+    const locale = result?.locale || "en-UK";
     this.setState({locale});
   }
 
@@ -150,8 +177,8 @@ class AppAuthentication extends Component {
   render() {
     return (
       <RenderedWebview port={this.props.port}>
-        {this.state.isReady && <AppContext.Provider value={this.state}>
-          <TranslationProvider loadingPath="/apps/rendered-webview/dist/locales/{{lng}}/{{ns}}.json">
+        {this.isReady && <AppContext.Provider value={this.state}>
+          <TranslationProvider loadingPath="dist/locales/{{lng}}/{{ns}}.json">
             <Router>
               <AuthenticationLoginContextProvider>
                 <div id="container" className="container page login">

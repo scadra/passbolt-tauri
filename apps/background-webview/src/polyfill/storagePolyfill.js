@@ -16,10 +16,17 @@ import {LOCALSTORAGE_CLEAR, LOCALSTORAGE_DELETE, LOCALSTORAGE_UPDATE} from "../e
 import { emit } from '@tauri-apps/api/event';
 
 /**
- * Polyfill to match the webview storage with the bext storage
+ * Polyfill to match the webview storage with the bext storage.
+ *
+ * localStorage writes are batched: multiple rapid `set()` calls are
+ * accumulated and flushed as individual IPC messages after a microtick.
+ * This prevents saturating the macOS main thread with protocol handler
+ * callbacks when the passbolt-browser-extension writes ~16 keys at init.
  */
 class StoragePolyfill {
   constructor() {
+    this._pendingUpdates = [];
+    this._flushScheduled = false;
     this.initLocaleStorage();
   }
 
@@ -30,15 +37,15 @@ class StoragePolyfill {
     window.chrome.storage = {
       local: {
         get: this.getStorage,
-        set:  (storage, value = "") => {
+        set: (storage, value = "") => {
           if (typeof storage === "object") {
             const keys = Object.keys(storage);
             const values = Object.values(storage);
             localStorage.setItem(keys[0], JSON.stringify(values[0]));
-            this.onStorageChanges(keys[0], JSON.stringify(values[0]));
+            this._queueUpdate(keys[0], JSON.stringify(values[0]));
           } else {
             localStorage.setItem(storage, value);
-            this.onStorageChanges(storage, value);
+            this._queueUpdate(storage, value);
           }
         },
         remove: key => {
@@ -51,6 +58,40 @@ class StoragePolyfill {
         }
       }
     };
+  }
+
+  /**
+   * Queue an update for batched delivery. The flush happens after a 50ms
+   * debounce — all synchronous and near-synchronous writes are coalesced
+   * into a single batch. This prevents saturating the macOS main thread.
+   */
+  _queueUpdate(key, value) {
+    // Deduplicate: only keep the latest value per key
+    const existing = this._pendingUpdates.findIndex(u => u.key === key);
+    if (existing !== -1) {
+      this._pendingUpdates[existing].value = value;
+    } else {
+      this._pendingUpdates.push({key, value});
+    }
+
+    // Reset the debounce timer on every write
+    if (this._flushTimer) {
+      clearTimeout(this._flushTimer);
+    }
+    this._flushTimer = setTimeout(() => this._flush(), 50);
+  }
+
+  /**
+   * Flush all pending updates as individual IPC messages.
+   */
+  async _flush() {
+    const updates = this._pendingUpdates;
+    this._pendingUpdates = [];
+    this._flushTimer = null;
+
+    for (const {key, value} of updates) {
+      await emit('background-ipc-message', {topic: LOCALSTORAGE_UPDATE, message: {key, value}});
+    }
   }
 
   /**
@@ -83,8 +124,6 @@ class StoragePolyfill {
 
   /**
    * Send event whenever storage has been cleared
-   * @param {string} key
-   * @returns
    */
   async onStorageCleared() {
     await emit('background-ipc-message', {topic: LOCALSTORAGE_CLEAR});
@@ -93,19 +132,9 @@ class StoragePolyfill {
   /**
    * Send event whenever storage has a entry deleted
    * @param {string} key
-   * @returns
    */
   async onStorageDelete(key) {
     await emit('background-ipc-message', {topic: LOCALSTORAGE_DELETE, message: key});
-  }
-
-  /**
-   * Send event whenever storage has been changed
-   * @param {string} key
-   * @returns
-   */
-  async onStorageChanges(key, value) {
-    await emit('background-ipc-message', {topic: LOCALSTORAGE_UPDATE, message: {key, value}});
   }
 }
 

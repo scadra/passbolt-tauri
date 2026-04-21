@@ -21,6 +21,7 @@ import './src/polyfill/alarmPolyfill';
 import './src/polyfill/cookiePolyfill';
 import './src/polyfill/scriptingPolyfill';
 import './src/polyfill/sessionStoragePolyfill';
+import './src/polyfill/fetchPolyfill';
 import Main from "./src/main-import";
 
 

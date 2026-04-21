@@ -1,11 +1,5 @@
 window.__TAURI_ISOLATION_HOOK__ = (payload) => {
     try {
-        console.log(payload)
-
-        console.log('ISOLATION: Checking UI security');
-        console.log(window.location);
-        console.log(payload);
-
         const allowedCommands = [
             'plugin:event|emit',
             'plugin:event|listen',

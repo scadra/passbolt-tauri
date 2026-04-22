@@ -80,10 +80,13 @@ fn determine_initial_mode(app: &tauri::App) -> AppMode {
     use passbolt_app::services::keyring_service::KeyringService;
 
     let keyring = KeyringService::default();
-    let mode = if keyring.has_account() {
-        if let Some(metadata) = keyring.get_account_metadata() {
-            let state = app.state::<AppState>();
-            state.navigation.set_trusted_domain(metadata.domain.clone());
+    let state = app.state::<AppState>();
+    let mode = if let Some(metadata) = keyring.get_account_metadata() {
+        state.credentials.set_metadata(metadata.clone());
+        state.navigation.set_trusted_domain(metadata.domain.clone());
+        // Also cache secret to avoid a second keyring prompt
+        if let Some(secret) = keyring.get_account_secret() {
+            state.credentials.set_secret(secret);
         }
         AppMode::Auth
     } else {

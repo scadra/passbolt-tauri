@@ -29,6 +29,13 @@ impl CookieState {
         self.cookies.lock().unwrap().get(name).cloned()
     }
 
+    /// Return all stored cookies as (name, value) pairs.
+    /// Used to inject cookies into WKWebView before MFA navigation.
+    pub fn get_all_cookies(&self) -> Vec<(String, String)> {
+        let cookies = self.cookies.lock().unwrap();
+        cookies.iter().map(|(name, value)| (name.clone(), value.clone())).collect()
+    }
+
     /// Build a `Cookie` header string from all stored cookies.
     /// Returns None if no cookies are stored.
     pub fn to_cookie_header(&self) -> Option<String> {

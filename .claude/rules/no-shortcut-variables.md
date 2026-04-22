@@ -1,0 +1,1 @@
+No single-letter variable names. Use full descriptive names: `path` not `p`, `data` not `d`, `file` not `f`, `message` not `m`, `value` not `v`. Applies to match bindings, closures, and all parameters in both Rust and JavaScript.

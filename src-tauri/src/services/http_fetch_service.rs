@@ -83,9 +83,9 @@ pub async fn handle_fetch(
         });
     }
 
-    // Build reqwest client (no auto-redirect)
+    // Build reqwest client — follow redirects (matches C# HttpClient default behaviour).
+    // Required for MFA: GET /auth/is-authenticated.json → 302 → /mfa/verify/error.json
     let client = match reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
         .build()
     {
         Ok(c) => c,

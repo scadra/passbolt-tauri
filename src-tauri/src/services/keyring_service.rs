@@ -4,9 +4,6 @@
 //! Linux Secret Service):
 //! - `account-metadata`: public account info (domain, keys, security token, theme, locale)
 //! - `account-secret`: armored passphrase-encrypted private key
-//!
-//! In debug builds, credentials are written to local files instead of the OS keyring
-//! to avoid polluting the real keychain during development.
 
 use log::{debug, warn};
 
@@ -141,66 +138,27 @@ impl KeyringService {
         self.save_account_secret(&secret)
     }
 
-    // ── Storage backend ─────────────────────────────────────────
+    // ── Storage backend (OS keyring) ──────────────────────────────
 
-    #[cfg(debug_assertions)]
-    fn read(&self, key: &str) -> Option<String> {
-        let path = self.debug_path(key);
-        std::fs::read_to_string(&path).ok()
-    }
-
-    #[cfg(debug_assertions)]
-    fn write(&self, key: &str, value: &str) -> Result<(), AppError> {
-        let path = self.debug_path(key);
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| AppError::CredentialError(format!("Failed to create dir: {}", e)))?;
-        }
-        std::fs::write(&path, value)
-            .map_err(|e| AppError::CredentialError(format!("Failed to write {}: {}", key, e)))
-    }
-
-    #[cfg(debug_assertions)]
-    fn delete(&self, key: &str) -> Result<(), AppError> {
-        let path = self.debug_path(key);
-        if path.exists() {
-            std::fs::remove_file(&path)
-                .map_err(|e| AppError::CredentialError(format!("Failed to delete {}: {}", key, e)))?;
-        }
-        Ok(())
-    }
-
-    #[cfg(debug_assertions)]
-    fn debug_path(&self, key: &str) -> std::path::PathBuf {
-        let base = dirs::data_local_dir()
-            .unwrap_or_else(|| std::path::PathBuf::from("."));
-        base.join(&self.service_name)
-            .join("debug-credentials")
-            .join(format!("{}.json", key))
-    }
-
-    #[cfg(not(debug_assertions))]
     fn read(&self, key: &str) -> Option<String> {
         let entry = keyring::Entry::new(&self.service_name, key).ok()?;
         entry.get_password().ok()
     }
 
-    #[cfg(not(debug_assertions))]
     fn write(&self, key: &str, value: &str) -> Result<(), AppError> {
         let entry = keyring::Entry::new(&self.service_name, key)
-            .map_err(|e| AppError::CredentialError(format!("Keyring entry error: {}", e)))?;
+            .map_err(|error| AppError::CredentialError(format!("Keyring entry error: {}", error)))?;
         entry.set_password(value)
-            .map_err(|e| AppError::CredentialError(format!("Keyring write error: {}", e)))
+            .map_err(|error| AppError::CredentialError(format!("Keyring write error: {}", error)))
     }
 
-    #[cfg(not(debug_assertions))]
     fn delete(&self, key: &str) -> Result<(), AppError> {
         let entry = keyring::Entry::new(&self.service_name, key)
-            .map_err(|e| AppError::CredentialError(format!("Keyring entry error: {}", e)))?;
+            .map_err(|error| AppError::CredentialError(format!("Keyring entry error: {}", error)))?;
         match entry.delete_credential() {
             Ok(_) => Ok(()),
-            Err(keyring::Error::NoEntry) => Ok(()), // already gone
-            Err(e) => Err(AppError::CredentialError(format!("Keyring delete error: {}", e))),
+            Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(AppError::CredentialError(format!("Keyring delete error: {}", error))),
         }
     }
 }

@@ -7,4 +7,6 @@ mod services {
     mod webview_service;
     mod ipc_listener_service;
     mod keyring_service;
+    mod mfa_service;
+    mod navigation_service;
 }

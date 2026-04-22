@@ -12,7 +12,7 @@
  * @since         1.1.0
  */
 
-import { emit } from '@tauri-apps/api/event';
+import IPCHandler from '../../shared/IPCHandler';
 import CheckAuthStatusService from "passbolt-browser-extension/src/all/background_page/service/auth/checkAuthStatusService";
 
 const AUTH_SESSION_CHECK_ALARM = "AuthSessionCheck";
@@ -26,7 +26,7 @@ class AuthSessionCheckService {
     const checkAuthService = new CheckAuthStatusService();
     const authStatus = await checkAuthService.checkAuthStatus(true);
     if (!authStatus.isAuthenticated) {
-      await emit("passbolt.auth.after-logout", {});
+      IPCHandler.getInstance().emit("passbolt.auth.after-logout");
     }
   }
 

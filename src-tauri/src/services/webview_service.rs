@@ -22,6 +22,7 @@ pub fn create_webviews(
     let background_url = build_webview_url("background-webview", background_uuid, mode);
 
     // --- Rendered webview ---
+    let app_for_rv_nav = app.clone();
     let app_for_rv = app.clone();
     let rendered_window = tauri::WebviewWindowBuilder::new(
         app,
@@ -30,6 +31,15 @@ pub fn create_webviews(
     )
     .title("Passbolt")
     .inner_size(1024.0, 768.0)
+    // Navigation guard — equivalent of MainPage.Rendered_NavigationStarting in C#.
+    // Delegates to navigation_service for clear separation of concerns.
+    .on_navigation(move |url| {
+        super::navigation_service::rendered_navigation_starting(&app_for_rv_nav, url)
+    })
+    // Block all window.open / target=_blank — equivalent of NewWindowRequested in C#.
+    .on_new_window(|_url, _features| {
+        tauri::webview::NewWindowResponse::Deny
+    })
     .on_page_load(move |_wv, payload| {
         let state = app_for_rv.state::<AppState>();
         match payload.event() {
@@ -60,6 +70,7 @@ pub fn create_webviews(
     info!("Rendered webview created (uuid: {})", rendered_uuid);
 
     // --- Background webview ---
+    let app_for_bg_nav = app.clone();
     let app_for_bg = app.clone();
     let background_window = tauri::WebviewWindowBuilder::new(
         app,
@@ -69,6 +80,14 @@ pub fn create_webviews(
     .title("Passbolt Background")
     .visible(false)
     .skip_taskbar(true)
+    // Navigation guard — equivalent of MainPage.Background_NavigationStarting in C#.
+    .on_navigation(move |url| {
+        super::navigation_service::background_navigation_starting(&app_for_bg_nav, url)
+    })
+    // Block all window.open / target=_blank.
+    .on_new_window(|_url, _features| {
+        tauri::webview::NewWindowResponse::Deny
+    })
     .on_page_load(move |_wv, payload| {
         let state = app_for_bg.state::<AppState>();
         match payload.event() {
@@ -111,6 +130,13 @@ pub fn create_webviews(
     }
 
     Ok(())
+}
+
+/// Build the origin prefix for a webview: `passbolt://{uuid}.passbolt.local/`.
+/// Used by `navigation_service` to validate that a webview only navigates
+/// to URLs on its own origin.
+pub fn build_origin(uuid: &str) -> String {
+    format!("{}://{}{}/", config::PROTOCOL_SCHEME, uuid, config::DOMAIN_SUFFIX)
 }
 
 /// Build the `passbolt://{uuid}.passbolt.local/apps/{webview}/index-{mode}.html` URL.

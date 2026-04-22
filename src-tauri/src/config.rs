@@ -30,6 +30,7 @@ pub const BACKGROUND_CLIPBOARD: &str = "passbolt.clipboard.copy";
 pub const ACCOUNT_SET_CURRENT: &str = "passbolt.account.set-current";
 pub const SAVE_ACCOUNT: &str = "passbolt.background.save-account";
 pub const BACKGROUND_HTTP_FETCH: &str = "passbolt.http.fetch";
+pub const RENDERED_ASSET_FETCH: &str = "passbolt.rendered.asset-fetch";
 
 /// Topics from Windows that need native handling.
 pub const ERROR: &str = "passbolt.error";

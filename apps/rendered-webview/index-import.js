@@ -12,6 +12,7 @@
  * @since         0.3.0
  */
 
+import "./src/polyfill/browserPolyfill";
 import IPCHandler from "./src/shared/IPCHandler";
 import React from "react";
 import ReactDOM from "react-dom";

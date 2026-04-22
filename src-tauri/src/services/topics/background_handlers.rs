@@ -3,6 +3,8 @@
 use log::{debug, info, warn};
 use tauri::AppHandle;
 
+use tauri::Manager;
+
 use crate::config;
 use crate::models::ipc_message::IpcMessage;
 use crate::services::keyring_service::KeyringService;
@@ -16,6 +18,13 @@ use super::handlers;
 pub fn handle_background_ready(app: &AppHandle, state: &AppState) {
     info!("[BackgroundTopic] Background is ready");
     state.navigation.set_background_ready(true);
+
+    // Resolve pending SAVE_ACCOUNT request — send SUCCESS to Rendered so the
+    // import-account Promise resolves (pendingRequestId pattern from WinUI 3).
+    if let Some(pending_request_id) = state.ipc.take_pending_request_by_topic(config::SAVE_ACCOUNT) {
+        let response = IpcMessage::success(&pending_request_id, None);
+        handlers::forward_to_rendered(app, &response);
+    }
 
     // Deliver cached passphrase if present (login → workspace transition).
     // Follow WinUI 3 pattern: send passphrase THEN navigate Rendered to workspace.
@@ -60,17 +69,55 @@ pub fn handle_after_login(app: &AppHandle, state: &AppState, ipc: &IpcMessage) {
     handle_redirect_to_workspace(app, state);
 }
 
-pub fn handle_require_mfa(state: &AppState, ipc: &IpcMessage) {
-    info!("[BackgroundTopic] MFA required — caching passphrase");
+pub fn handle_require_mfa(app: &AppHandle, state: &AppState, ipc: &IpcMessage) {
+    info!("[BackgroundTopic] MFA required — caching passphrase, navigating to MFA page");
     if let Some(msg) = &ipc.message {
+        // Cache passphrase for later workspace transition
         if let Some(passphrase) = msg.get("passphrase").and_then(|p| p.as_str()) {
             state.auth.set_passphrase(passphrase.to_string());
+        }
+
+        let provider = msg.get("provider")
+            .and_then(|p| p.as_str())
+            .unwrap_or("totp");
+
+        // Inject cookies from CookieState into WKWebView so the server
+        // recognises the session when the webview navigates to the MFA page.
+        if let Some(webview) = app.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
+            if let Some(domain) = state.navigation.get_trusted_domain() {
+                let domain_host = domain
+                    .trim_start_matches("https://")
+                    .trim_start_matches("http://");
+                for (name, value) in state.cookies.get_all_cookies() {
+                    let base = tauri::webview::Cookie::new(&name, &value);
+                    let cookie = tauri::webview::Cookie::build(base)
+                        .domain(domain_host)
+                        .path("/")
+                        .secure(true)
+                        .http_only(true)
+                        .build();
+                    if let Err(error) = webview.set_cookie(cookie) {
+                        warn!("[BackgroundTopic] Failed to inject cookie {}: {}", name, error);
+                    }
+                }
+            }
+        }
+
+        // AllowMfaUrls equivalent — enable MFA URL allowlist in navigation guard
+        state.navigation.set_mfa_active(true);
+
+        // Navigate Rendered WebView to the server's MFA verification page
+        if let Some(domain) = state.navigation.get_trusted_domain() {
+            let mfa_url = crate::services::mfa_service::build_mfa_url(&domain, provider);
+            info!("[BackgroundTopic] Navigating Rendered to MFA: {}", mfa_url);
+            handlers::navigate_webview(app, config::RENDERED_WEBVIEW_LABEL, &mfa_url);
         }
     }
 }
 
 pub fn handle_logout(app: &AppHandle, state: &AppState) {
     info!("[BackgroundTopic] Logout — redirecting to auth");
+    state.credentials.clear();
     handle_redirect_to_auth(app, state);
 }
 
@@ -79,31 +126,44 @@ pub fn handle_logout(app: &AppHandle, state: &AppState) {
 pub fn handle_save_account(app: &AppHandle, state: &AppState, ipc: &IpcMessage) {
     info!("[BackgroundTopic] Saving account from import");
 
-    if let Some(msg) = &ipc.message {
+    if let Some(raw) = &ipc.message {
         let keyring = KeyringService::default();
 
+        // The message may be wrapped in an array by IPCHandler.request()
+        let msg = if let Some(array) = raw.as_array() {
+            array.first().unwrap_or(raw)
+        } else {
+            raw
+        };
+
+        // Try nested format (accountMetaData/accountSecret) or flat DTO
         let metadata_result = msg.get("accountMetaData")
             .or_else(|| msg.get("account_meta_data"))
-            .and_then(|v| serde_json::from_value(v.clone()).ok());
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .or_else(|| serde_json::from_value(msg.clone()).ok());
 
         let secret_result = msg.get("accountSecret")
             .or_else(|| msg.get("account_secret"))
-            .and_then(|v| serde_json::from_value(v.clone()).ok());
+            .and_then(|value| serde_json::from_value(value.clone()).ok())
+            .or_else(|| serde_json::from_value(msg.clone()).ok());
 
         if let (Some(metadata), Some(secret)) = (metadata_result, secret_result) {
             match keyring.create_account(&metadata, &secret) {
                 Ok(_) => {
+                    state.credentials.set_metadata(metadata.clone());
+                    state.credentials.set_secret(secret.clone());
                     state.navigation.set_trusted_domain(metadata.domain.clone());
                     state.navigation.set_mode(AppMode::Auth);
+
+                    // Store the requestId from the payload — will be resolved
+                    // when Background auth boots (pendingRequestId pattern)
+                    if let Some(request_id) = msg.get("requestId").and_then(|value| value.as_str()) {
+                        state.ipc.add_pending_request(request_id, config::SAVE_ACCOUNT);
+                    }
 
                     use crate::services::webview_service::build_webview_url;
                     let bg_url = build_webview_url("background-webview", &state.navigation.get_background_uuid(), &AppMode::Auth);
                     handlers::navigate_webview(app, config::BACKGROUND_WEBVIEW_LABEL, &bg_url);
-
-                    if let Some(ref request_id) = ipc.request_id {
-                        let response = IpcMessage::success(request_id, None);
-                        handlers::forward_to_rendered(app, &response);
-                    }
                 }
                 Err(e) => {
                     warn!("[BackgroundTopic] Failed to save account: {}", e);
@@ -281,10 +341,13 @@ pub fn handle_http_fetch(app: &AppHandle, state: &AppState, ipc: &IpcMessage) {
 
 // ── Response forwarding ─────────────────────────────────────────
 
-pub fn handle_response_forward(app: &AppHandle, state: &AppState, ipc: IpcMessage) {
+pub fn handle_response_forward(app: &AppHandle, state: &AppState, mut ipc: IpcMessage) {
     if state.ipc.proceed_request_id(&ipc.topic) {
-        if let Some(_original_topic) = state.ipc.get_pending_request(&ipc.topic) {
+        if let Some(original_topic) = state.ipc.get_pending_request(&ipc.topic) {
             state.ipc.remove_pending_request(&ipc.topic);
+            if original_topic == crate::topics::rbac_topics::RbacTopics::FIND_ME {
+                crate::services::rbac_service::inject_desktop_denies(&mut ipc.message);
+            }
         }
         handlers::forward_to_rendered(app, &ipc);
     } else {
@@ -294,7 +357,7 @@ pub fn handle_response_forward(app: &AppHandle, state: &AppState, ipc: IpcMessag
 
 // ── Navigation helpers ──────────────────────────────────────────
 
-fn handle_redirect_to_workspace(app: &AppHandle, state: &AppState) {
+pub fn handle_redirect_to_workspace(app: &AppHandle, state: &AppState) {
     use crate::services::webview_service::build_webview_url;
     state.reset_for_navigation();
     state.navigation.set_mode(AppMode::Workspace);
@@ -326,10 +389,25 @@ fn handle_navigate_rendered(app: &AppHandle, state: &AppState) {
 }
 
 fn handle_send_account_kit(app: &AppHandle, state: &AppState) {
-    let keyring = KeyringService::default();
-
-    let metadata = keyring.get_account_metadata();
-    let secret = keyring.get_account_secret();
+    // Use cache first, keyring as fallback
+    let metadata = state.credentials.get_metadata()
+        .or_else(|| {
+            let keyring = KeyringService::default();
+            let metadata = keyring.get_account_metadata();
+            if let Some(ref metadata) = metadata {
+                state.credentials.set_metadata(metadata.clone());
+            }
+            metadata
+        });
+    let secret = state.credentials.get_secret()
+        .or_else(|| {
+            let keyring = KeyringService::default();
+            let secret = keyring.get_account_secret();
+            if let Some(ref secret) = secret {
+                state.credentials.set_secret(secret.clone());
+            }
+            secret
+        });
 
     if let (Some(metadata), Some(secret)) = (metadata, secret) {
         let request_id = uuid::Uuid::new_v4().to_string();

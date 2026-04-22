@@ -42,6 +42,8 @@ impl RenderedTopicService {
         match ipc.topic.as_str() {
             config::RENDERED_READY => rv::handle_rendered_ready(app, state),
 
+            config::RENDERED_ASSET_FETCH => rv::handle_asset_fetch(app, &ipc),
+
             t if t == RbacTopics::FIND_ME => rv::handle_rbac_request(app, state, ipc),
 
             t if t == FolderTopics::MOVE_STRATEGY_REQUEST

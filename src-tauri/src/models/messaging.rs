@@ -76,6 +76,7 @@ impl AllowedTopics {
             crate::config::BACKGROUND_AFTER_LOGOUT,
             crate::config::RENDERED_RELOAD,
             crate::config::BACKGROUND_CLIPBOARD_SET_TEXT,
+            crate::config::RENDERED_ASSET_FETCH,
         ];
         for topic in native {
             topics.insert(topic.to_string());

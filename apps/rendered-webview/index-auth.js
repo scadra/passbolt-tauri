@@ -12,16 +12,19 @@
  * @since         0.3.0
  */
 
+import "./src/polyfill/browserPolyfill";
 import IPCHandler from "./src/shared/IPCHandler";
 import React from "react";
 import ReactDOM from "react-dom";
 import WebviewStorage from "./src/shared/WebviewStorage";
 import AppAuthentication from "./src/AppAuthentication";
 import "./src/polyfill/externalLinkPolyfill"
+import { setFetchPolyfillPort } from "./src/polyfill/fetchPolyfill"
 
 export async function main() {
     // Port connection
     const channel = new IPCHandler();
+    setFetchPolyfillPort(channel);
     // Start ExtBootstrapApp
     const storage = new WebviewStorage().storage;
     const domContainer = document.createElement("div");

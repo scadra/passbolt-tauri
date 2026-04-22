@@ -75,4 +75,21 @@ impl IpcState {
     pub fn clear_pending_messages(&self) {
         self.pending_messages.lock().unwrap().clear();
     }
+
+    /// Find and remove the first pending request whose topic matches.
+    ///
+    /// Returns the request ID (the map key), not the topic (the map value),
+    /// because the caller already knows the topic — it needs the request ID
+    /// to resolve the original Promise on the JS side.
+    ///
+    /// If multiple entries share the same topic, only the first arbitrary
+    /// match is removed (HashMap iteration order is unspecified).
+    pub fn take_pending_request_by_topic(&self, topic: &str) -> Option<String> {
+        let mut map = self.pending_requests.lock().unwrap();
+        let key = map.iter()
+            .find(|(_, value)| value.as_str() == topic)
+            .map(|(request_id, _)| request_id.clone())?;
+        map.remove(&key);
+        Some(key)
+    }
 }

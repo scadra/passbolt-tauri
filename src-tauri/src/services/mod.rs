@@ -7,3 +7,6 @@ pub mod webview_service;
 pub mod ipc_listener_service;
 pub mod keyring_service;
 pub mod http_fetch_service;
+pub mod rbac_service;
+pub mod mfa_service;
+pub mod navigation_service;

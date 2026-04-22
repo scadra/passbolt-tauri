@@ -2,19 +2,15 @@ use super::ipc_state::IpcState;
 use super::navigation_state::NavigationState;
 use super::auth_state::AuthState;
 use super::cookie_state::CookieState;
+use super::credential_cache::CredentialCache;
 
 /// Thread-safe application state shared across all event handlers.
-///
-/// Composed of focused sub-states:
-/// - `ipc`: request/response correlation (request_ids, pending_requests, pending_messages)
-/// - `navigation`: webview readiness, current mode, trusted domain
-/// - `auth`: passphrase relay for the login→workspace transition
-/// - `cookies`: in-memory cookie store (like WinUI 3's CookiesManager)
 pub struct AppState {
     pub ipc: IpcState,
     pub navigation: NavigationState,
     pub auth: AuthState,
     pub cookies: CookieState,
+    pub credentials: CredentialCache,
 }
 
 impl AppState {
@@ -24,6 +20,7 @@ impl AppState {
             navigation: NavigationState::new(),
             auth: AuthState::new(),
             cookies: CookieState::new(),
+            credentials: CredentialCache::new(),
         }
     }
 

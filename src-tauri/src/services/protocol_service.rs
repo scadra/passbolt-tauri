@@ -20,6 +20,10 @@ pub struct RenderedDistAssets;
 pub struct RenderedSrcAssets;
 
 #[derive(RustEmbed)]
+#[folder = "../apps/rendered-webview/img"]
+pub struct RenderedImgAssets;
+
+#[derive(RustEmbed)]
 #[folder = "../apps/background-webview/dist"]
 pub struct BackgroundDistAssets;
 
@@ -146,6 +150,13 @@ impl ProtocolService {
             }
         }
 
+        // Image assets (img/) — Rendered only
+        if let Some(img_path) = inner_path.strip_prefix("img/") {
+            if *target == WebviewTarget::Rendered {
+                return serve_img_asset(img_path);
+            }
+        }
+
         // Fallback: try dist
         serve_dist_asset(target, inner_path)
     }
@@ -204,6 +215,19 @@ fn serve_dist_asset(target: &WebviewTarget, asset_path: &str) -> Response<Vec<u8
         WebviewTarget::Background => BackgroundDistAssets::get(asset_path),
     };
 
+    // Fallback: locale folders use "passbolt-" prefix (e.g. "passbolt-en-UK")
+    let data = data.or_else(|| {
+        if asset_path.starts_with("locales/") {
+            let prefixed = asset_path.replacen("locales/", "locales/passbolt-", 1);
+            match target {
+                WebviewTarget::Rendered => RenderedDistAssets::get(&prefixed),
+                WebviewTarget::Background => BackgroundDistAssets::get(&prefixed),
+            }
+        } else {
+            None
+        }
+    });
+
     serve_embedded_file(data, asset_path)
 }
 
@@ -213,7 +237,17 @@ fn serve_src_asset(asset_path: &str) -> Response<Vec<u8>> {
     serve_embedded_file(data, asset_path)
 }
 
+fn serve_img_asset(asset_path: &str) -> Response<Vec<u8>> {
+    let data = RenderedImgAssets::get(asset_path);
+    serve_embedded_file(data, asset_path)
+}
+
 fn serve_embedded_file(data: Option<rust_embed::EmbeddedFile>, asset_path: &str) -> Response<Vec<u8>> {
+    if data.is_none() {
+        if cfg!(debug_assertions) {
+            eprintln!("[PROTO] 404 asset_path={}", asset_path);
+        }
+    }
     match data {
         Some(file) => {
             let mime = mime_type_for_path(asset_path);

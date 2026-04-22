@@ -2894,6 +2894,7 @@ dependencies = [
 name = "passbolt-app"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "dirs",
  "env_logger",
  "keyring",
@@ -2910,6 +2911,7 @@ dependencies = [
  "tokio",
  "url",
  "uuid",
+ "zeroize",
 ]
 
 [[package]]

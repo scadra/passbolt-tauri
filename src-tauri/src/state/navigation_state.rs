@@ -20,6 +20,9 @@ pub struct NavigationState {
     /// Per-webview UUIDs for unique origins in `passbolt://` URLs.
     background_uuid: Mutex<String>,
     rendered_uuid: Mutex<String>,
+    /// Whether the MFA verification flow is active (Rendered navigated to external domain).
+    /// Equivalent of RenderedNavigationService.AllowMfaUrls / DisallowMfaUrls in C#.
+    mfa_active: Mutex<bool>,
 }
 
 impl NavigationState {
@@ -34,6 +37,7 @@ impl NavigationState {
             isolation_schema: Mutex::new(None),
             background_uuid: Mutex::new(uuid::Uuid::new_v4().to_string()),
             rendered_uuid: Mutex::new(uuid::Uuid::new_v4().to_string()),
+            mfa_active: Mutex::new(false),
         }
     }
 
@@ -79,6 +83,7 @@ impl NavigationState {
         self.set_rendered_ready(false);
         self.set_background_page_loaded(false);
         self.set_rendered_page_loaded(false);
+        self.set_mfa_active(false);
     }
 
     // --- Mode ---
@@ -124,5 +129,17 @@ impl NavigationState {
 
     pub fn get_rendered_uuid(&self) -> String {
         self.rendered_uuid.lock().unwrap().clone()
+    }
+
+    // --- MFA active ---
+
+    /// Set whether MFA verification flow is active.
+    /// Equivalent of AllowMfaUrls (true) / DisallowMfaUrls (false) in C#.
+    pub fn set_mfa_active(&self, active: bool) {
+        *self.mfa_active.lock().unwrap() = active;
+    }
+
+    pub fn is_mfa_active(&self) -> bool {
+        *self.mfa_active.lock().unwrap()
     }
 }

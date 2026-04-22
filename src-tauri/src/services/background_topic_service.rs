@@ -24,7 +24,7 @@ impl BackgroundTopicService {
             config::BACKGROUND_LISTENER_READY => bg::handle_listener_ready(app, state),
 
             t if t == AuthenticationTopics::AFTER_LOGIN => bg::handle_after_login(app, state, &ipc),
-            t if t == AuthenticationTopics::REQUIRE_MFA => bg::handle_require_mfa(state, &ipc),
+            t if t == AuthenticationTopics::REQUIRE_MFA => bg::handle_require_mfa(app, state, &ipc),
             t if t == AuthenticationTopics::LOG_OUT => bg::handle_logout(app, state),
 
             config::SAVE_ACCOUNT => bg::handle_save_account(app, state, &ipc),

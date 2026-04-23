@@ -136,51 +136,26 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
     // DisallowMfaUrls equivalent
     state.navigation.set_mfa_active(false);
 
-    // Extract cookies + navigate to workspace.
-    // Cannot navigate the Rendered webview synchronously from its own on_page_load
-    // callback (deadlock). On macOS, Rendered is still on an internal page with IPC
-    // and gets navigated later via the bilateral handshake. On Windows, Rendered is
-    // on the external MFA page (no IPC), so we must navigate it explicitly via spawn.
+    // Extract cookies, then navigate Background to workspace. Rendered navigation
+    // is handled by deliver_cached_passphrase() when Background signals ready.
     let app_handle = app.clone();
     let cookie_state = state.cookies.clone();
     let trusted_domain = state.navigation.get_trusted_domain();
-    #[cfg(target_os = "windows")]
-    let rendered_uuid = state.navigation.get_rendered_uuid();
 
     // Navigate Background to workspace (different webview, safe from on_page_load)
-    eprintln!("[MFA_PERF] redirect_to_workspace — start");
     crate::services::auth_service::redirect_to_workspace(app, &state);
-    eprintln!("[MFA_PERF] redirect_to_workspace — done");
 
-    // Deferred: extract cookies + navigate Rendered (off main thread to avoid deadlock)
+    // Extract MFA cookies off the main thread (cookies_for_url deadlocks on
+    // Windows main thread). Rendered navigation is NOT done here — it's handled
+    // by deliver_cached_passphrase() when Background signals ready, ensuring
+    // Rendered only appears after data is loaded (no empty workspace flash).
     tauri::async_runtime::spawn(async move {
-        eprintln!("[MFA_PERF] async spawn — started");
-
-        // Extract MFA cookies from Rendered webview's browser cookie store
         if let Some(webview) = app_handle.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
             if let Some(domain) = &trusted_domain {
-                eprintln!("[MFA_PERF] cookies_for_url — start");
                 crate::services::cookie_service::extract_cookies_from_webview(
                     &webview, &cookie_state, domain,
                 );
-                eprintln!("[MFA_PERF] cookies_for_url — done");
             }
-        }
-
-        // On Windows, Rendered is stuck on the external MFA page (no IPC).
-        // Navigate it to workspace explicitly.
-        #[cfg(target_os = "windows")]
-        {
-            eprintln!("[MFA_PERF] navigating Rendered to workspace");
-            let rendered_url = crate::services::webview_service::build_webview_url(
-                "rendered-webview",
-                &rendered_uuid,
-                &crate::state::AppMode::Workspace,
-                trusted_domain.as_deref(),
-            );
-            crate::services::topics::handlers::navigate_webview(
-                &app_handle, config::RENDERED_WEBVIEW_LABEL, &rendered_url,
-            );
         }
     });
 }

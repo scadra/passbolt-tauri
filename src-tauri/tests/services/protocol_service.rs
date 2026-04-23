@@ -1,5 +1,5 @@
-use passbolt_app::services::protocol_service::{self, mime_type_for_path};
-use passbolt_app::state::AppMode;
+use passbolt::services::protocol_service::{self, mime_type_for_path};
+use passbolt::state::AppMode;
 
 const BG_UUID: &str = "bg-uuid-1234-5678-9abc-def012345678";
 const RV_UUID: &str = "rv-uuid-1234-5678-9abc-def012345678";

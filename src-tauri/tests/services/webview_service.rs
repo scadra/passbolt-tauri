@@ -1,5 +1,5 @@
-use passbolt_app::services::webview_service::build_webview_url;
-use passbolt_app::state::AppMode;
+use passbolt::services::webview_service::build_webview_url;
+use passbolt::state::AppMode;
 
 const TEST_UUID: &str = "abc12345-1234-5678-9abc-def012345678";
 

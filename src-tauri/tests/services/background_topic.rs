@@ -1,5 +1,5 @@
-use passbolt_app::models::ipc_message::IpcMessage;
-use passbolt_app::state::{AppMode, AppState};
+use passbolt::models::ipc_message::IpcMessage;
+use passbolt::state::{AppMode, AppState};
 
 // ── Ready handshake ─────────────────────────────────────────────
 

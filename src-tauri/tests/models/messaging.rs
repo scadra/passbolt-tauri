@@ -1,4 +1,4 @@
-use passbolt_app::models::messaging::AllowedTopics;
+use passbolt::models::messaging::AllowedTopics;
 
 /// Topics defined in the 33 topic modules (e.g. `AuthenticationTopics::DESKTOP_AUTHENTICATE`)
 /// must be present in the whitelist after `AllowedTopics::new()` aggregates them.

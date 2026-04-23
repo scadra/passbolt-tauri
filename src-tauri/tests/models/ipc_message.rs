@@ -1,4 +1,4 @@
-use passbolt_app::models::ipc_message::IpcMessage;
+use passbolt::models::ipc_message::IpcMessage;
 
 /// `IpcMessage::new` should produce a minimal envelope with only the topic set.
 /// All optional fields (status, message, requestId) should be None.

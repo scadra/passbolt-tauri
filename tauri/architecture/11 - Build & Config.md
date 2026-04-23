@@ -4,7 +4,7 @@
 
 ```bash
 # Development
-npm run tauri:dev              # RUST_LOG=warn,passbolt_app=info
+npm run tauri:dev              # RUST_LOG=warn,passbolt=info
 npm run tauri:dev:debug        # RUST_LOG=debug
 npm run tauri:dev:trace        # RUST_LOG=trace
 

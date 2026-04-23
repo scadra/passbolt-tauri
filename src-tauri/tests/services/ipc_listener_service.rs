@@ -1,4 +1,4 @@
-use passbolt_app::services::ipc_listener_service::parse_ipc_payload;
+use passbolt::services::ipc_listener_service::parse_ipc_payload;
 
 /// A valid IPC JSON payload is parsed into an IpcMessage.
 #[test]

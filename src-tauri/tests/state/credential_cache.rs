@@ -1,6 +1,6 @@
-use passbolt_app::models::account_metadata::{AccountMetadata, SecurityToken};
-use passbolt_app::models::account_secret::AccountSecret;
-use passbolt_app::state::AppState;
+use passbolt::models::account_metadata::{AccountMetadata, SecurityToken};
+use passbolt::models::account_secret::AccountSecret;
+use passbolt::state::AppState;
 
 fn test_metadata() -> AccountMetadata {
     AccountMetadata {

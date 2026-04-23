@@ -1,10 +1,10 @@
 use log::{info, error, debug};
 use tauri::Manager;
 
-use passbolt_app::config;
-use passbolt_app::services::{ipc_listener_service, webview_service};
-use passbolt_app::services::protocol_service::ProtocolService;
-use passbolt_app::state::{AppMode, AppState};
+use passbolt::config;
+use passbolt::services::{ipc_listener_service, webview_service};
+use passbolt::services::protocol_service::ProtocolService;
+use passbolt::state::{AppMode, AppState};
 
 fn main() {
     env_logger::init();
@@ -77,7 +77,7 @@ fn debug_ping() -> String {
 
 /// Decide which mode to boot into based on whether an account exists in the keyring.
 fn determine_initial_mode(app: &tauri::App) -> AppMode {
-    use passbolt_app::services::keyring_service::KeyringService;
+    use passbolt::services::keyring_service::KeyringService;
 
     let keyring = KeyringService::default();
     let state = app.state::<AppState>();

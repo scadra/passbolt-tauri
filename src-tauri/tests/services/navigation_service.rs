@@ -1,4 +1,4 @@
-use passbolt_app::state::{AppState, AppMode};
+use passbolt::state::{AppState, AppMode};
 
 const TRUSTED_DOMAIN: &str = "https://passbolt.example.com";
 
@@ -27,7 +27,7 @@ fn blocks_external_url_when_mfa_inactive() {
 
 #[test]
 fn mfa_active_allows_mfa_verification_url() {
-    use passbolt_app::services::mfa_service;
+    use passbolt::services::mfa_service;
 
     let state = state_with_domain();
     state.navigation.set_mfa_active(true);
@@ -41,7 +41,7 @@ fn mfa_active_allows_mfa_verification_url() {
 
 #[test]
 fn mfa_active_blocks_non_mfa_url_on_trusted_domain() {
-    use passbolt_app::services::mfa_service;
+    use passbolt::services::mfa_service;
 
     let state = state_with_domain();
     state.navigation.set_mfa_active(true);
@@ -55,7 +55,7 @@ fn mfa_active_blocks_non_mfa_url_on_trusted_domain() {
 
 #[test]
 fn mfa_active_blocks_mfa_url_on_wrong_domain() {
-    use passbolt_app::services::mfa_service;
+    use passbolt::services::mfa_service;
 
     let state = state_with_domain();
     state.navigation.set_mfa_active(true);
@@ -69,7 +69,7 @@ fn mfa_active_blocks_mfa_url_on_wrong_domain() {
 
 #[test]
 fn mfa_active_detects_completion() {
-    use passbolt_app::services::mfa_service;
+    use passbolt::services::mfa_service;
 
     let state = state_with_domain();
     state.navigation.set_mfa_active(true);

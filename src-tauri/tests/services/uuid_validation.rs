@@ -1,4 +1,4 @@
-use passbolt_app::services::rendered_topic_service::is_valid_uuid;
+use passbolt::services::rendered_topic_service::is_valid_uuid;
 
 /// Standard UUID v4 with lowercase hex — the format JS `uuidv4()` produces.
 #[test]

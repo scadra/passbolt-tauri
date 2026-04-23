@@ -1,6 +1,6 @@
-use passbolt_app::models::account_metadata::{AccountMetadata, SecurityToken};
-use passbolt_app::models::account_secret::AccountSecret;
-use passbolt_app::services::keyring_service::KeyringService;
+use passbolt::models::account_metadata::{AccountMetadata, SecurityToken};
+use passbolt::models::account_secret::AccountSecret;
+use passbolt::services::keyring_service::KeyringService;
 
 /// Helper: create a service with a unique name to avoid test collisions.
 fn test_service(name: &str) -> KeyringService {

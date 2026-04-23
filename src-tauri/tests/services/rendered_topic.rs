@@ -1,7 +1,7 @@
-use passbolt_app::models::ipc_message::IpcMessage;
-use passbolt_app::models::messaging::AllowedTopics;
-use passbolt_app::services::rendered_topic_service::is_valid_uuid;
-use passbolt_app::state::AppState;
+use passbolt::models::ipc_message::IpcMessage;
+use passbolt::models::messaging::AllowedTopics;
+use passbolt::services::rendered_topic_service::is_valid_uuid;
+use passbolt::state::AppState;
 
 // ── Topic validation ────────────────────────────────────────────
 

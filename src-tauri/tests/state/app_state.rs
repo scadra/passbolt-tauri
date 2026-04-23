@@ -1,4 +1,4 @@
-use passbolt_app::state::{AppMode, AppState};
+use passbolt::state::{AppMode, AppState};
 
 // ── IPC state ───────────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ fn pending_request_returns_original_topic() {
 /// all of them in order and empties the buffer.
 #[test]
 fn pending_messages_drain_in_order_then_empty() {
-    use passbolt_app::models::ipc_message::IpcMessage;
+    use passbolt::models::ipc_message::IpcMessage;
 
     let state = AppState::new();
 
@@ -116,7 +116,7 @@ fn trusted_domain_lifecycle() {
 /// the new bundles load and the ready handshake replays.
 #[test]
 fn reset_for_navigation_clears_ready_flags_and_pending_messages() {
-    use passbolt_app::models::ipc_message::IpcMessage;
+    use passbolt::models::ipc_message::IpcMessage;
 
     let state = AppState::new();
 

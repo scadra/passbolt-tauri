@@ -1,8 +1,8 @@
-use passbolt_app::config;
+use passbolt::config;
 
 /// Each webview gets a unique origin: `passbolt://<uuid>.passbolt.local`.
 /// An attacker could try to craft a domain that ends with `.passbolt.local`
-/// but isn't a legitimate UUID origin — e.g. `evil.passbolt.local.attacker.com`
+/// but isn't a legitimate UUID origin — ex. `evil.passbolt.local.attacker.com`
 /// or the bare suffix `passbolt.local` without a UUID prefix.
 ///
 /// This test verifies that the domain validation logic rejects:

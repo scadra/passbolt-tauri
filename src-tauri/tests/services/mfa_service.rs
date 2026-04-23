@@ -1,4 +1,4 @@
-use passbolt_app::services::mfa_service;
+use passbolt::services::mfa_service;
 
 const DOMAIN: &str = "https://passbolt.example.com";
 

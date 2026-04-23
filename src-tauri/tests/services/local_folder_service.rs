@@ -1,5 +1,5 @@
-use passbolt_app::services::local_folder_service::{self, IndexContext, WebviewTarget};
-use passbolt_app::state::AppMode;
+use passbolt::services::local_folder_service::{self, IndexContext, WebviewTarget};
+use passbolt::state::AppMode;
 
 const TEST_UUID: &str = "abc12345-1234-5678-9abc-def012345678";
 const TEST_DOMAIN: &str = "https://passbolt.example.com";

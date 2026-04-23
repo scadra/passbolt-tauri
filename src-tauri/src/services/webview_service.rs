@@ -1,6 +1,13 @@
 //! Webview creation and lifecycle management.
+//!
+//! Creates both webviews (Rendered + Background) and wires up:
+//! - Navigation guards (`on_navigation` → `navigation_service`)
+//! - New window blocking (`on_new_window` → `Deny`)
+//! - Page load tracking (`on_page_load` → ready flags)
+//! - Security hardening (`webview_security::harden`)
+//! - DevTools (debug builds only)
 
-use log::info;
+use log::{info, error};
 use tauri::{AppHandle, Manager};
 
 use crate::config;
@@ -8,10 +15,11 @@ use crate::state::{AppMode, AppState};
 
 /// Create both webviews with URLs matching the given mode.
 ///
-/// Each webview gets `on_page_load` callbacks that track when WKWebView
-/// has finished loading the page. This prevents `emit_to` (which calls
-/// `evaluateJavaScript`) from being dispatched while the webview is
-/// navigating — which would deadlock the macOS main thread.
+/// Each webview is created hidden (`visible(false)`), hardened via
+/// `webview_security::harden()`, then shown. This ensures no frame
+/// loads with default (insecure) settings before hardening completes.
+///
+/// Equivalent of C# `MainController.LoadWebviews()` + `SetWebviewSettings()`.
 pub fn create_webviews(
     app: &AppHandle,
     mode: &AppMode,
@@ -23,6 +31,7 @@ pub fn create_webviews(
 
     // --- Rendered webview ---
     let app_for_rv_nav = app.clone();
+    let app_for_rv_new_window = app.clone();
     let app_for_rv = app.clone();
     let rendered_window = tauri::WebviewWindowBuilder::new(
         app,
@@ -31,13 +40,22 @@ pub fn create_webviews(
     )
     .title("Passbolt")
     .inner_size(1024.0, 768.0)
+    .visible(false) // Hidden until hardened
+    // DevTools: only in debug builds. Prevents opening inspector in release.
+    .devtools(cfg!(debug_assertions))
     // Navigation guard — equivalent of MainPage.Rendered_NavigationStarting in C#.
-    // Delegates to navigation_service for clear separation of concerns.
     .on_navigation(move |url| {
         super::navigation_service::rendered_navigation_starting(&app_for_rv_nav, url)
     })
-    // Block all window.open / target=_blank — equivalent of NewWindowRequested in C#.
-    .on_new_window(|_url, _features| {
+    // New window handler — equivalent of NewWindowRequested + CanOpenBrowser in C#.
+    // Whitelisted URLs open in system browser; everything else is blocked.
+    // The JS externalLinkPolyfill intercepts window.open() before this fires,
+    // so this primarily catches <a target="_blank"> clicks.
+    .on_new_window(move |url, _features| {
+        if cfg!(debug_assertions) {
+            eprintln!("[on_new_window] Rendered: {}", url.as_str());
+        }
+        super::navigation_service::handle_new_window_requested(&app_for_rv_new_window, url.as_str());
         tauri::webview::NewWindowResponse::Deny
     })
     .on_page_load(move |_wv, payload| {
@@ -47,25 +65,49 @@ pub fn create_webviews(
                 if cfg!(debug_assertions) {
                     eprintln!("[PL_LOCK] >>> set_rv_page_loaded(false) thread={:?}", std::thread::current().id());
                 }
+                log::info!("[PAGE] Rendered started: {}", payload.url());
                 state.navigation.set_rendered_page_loaded(false);
                 if cfg!(debug_assertions) {
                     eprintln!("[PL_LOCK] <<< set_rv_page_loaded(false) thread={:?}", std::thread::current().id());
-                    eprintln!("[PAGE] Rendered started: {}", payload.url());
                 }
             }
             tauri::webview::PageLoadEvent::Finished => {
                 if cfg!(debug_assertions) {
                     eprintln!("[PL_LOCK] >>> set_rv_page_loaded(true) thread={:?}", std::thread::current().id());
                 }
+                log::info!("[PAGE] Rendered finished: {}", payload.url());
                 state.navigation.set_rendered_page_loaded(true);
                 if cfg!(debug_assertions) {
                     eprintln!("[PL_LOCK] <<< set_rv_page_loaded(true) thread={:?}", std::thread::current().id());
-                    eprintln!("[PAGE] Rendered finished: {}", payload.url());
+                }
+
+                // MFA completion detection — equivalent of C# RenderedNavigationStarting
+                // HasMfaCompleted check, but triggered from on_page_load instead of
+                // on_navigation to ensure the workspace transition runs in the same
+                // execution context as the normal login flow.
+                if state.navigation.is_mfa_active() {
+                    if let Some(domain) = state.navigation.get_trusted_domain() {
+                        let url_str = payload.url().to_string();
+                        if crate::services::mfa_service::has_mfa_completed(&url_str, &domain) {
+                            log::info!("[PAGE] MFA terminal redirect detected — triggering workspace transition");
+                            super::navigation_service::handle_mfa_completed_from_page_load(&app_for_rv, &state);
+                        }
+                    }
                 }
             }
         }
     })
     .build()?;
+
+    // Apply platform-specific security settings (swipe, zoom, link preview, etc.)
+    if let Err(error) = super::webview_security::harden(&rendered_window) {
+        error!("[Webview] Failed to harden rendered webview: {}", error);
+    }
+
+    // Show after hardening (debug: also open devtools)
+    #[cfg(debug_assertions)]
+    rendered_window.open_devtools();
+    let _ = rendered_window.show();
 
     info!("Rendered webview created (uuid: {})", rendered_uuid);
 
@@ -78,56 +120,44 @@ pub fn create_webviews(
         tauri::WebviewUrl::CustomProtocol(background_url.parse().unwrap()),
     )
     .title("Passbolt Background")
-    .visible(false)
+    .visible(false) // Background webview is always hidden
     .skip_taskbar(true)
+    .devtools(cfg!(debug_assertions))
     // Navigation guard — equivalent of MainPage.Background_NavigationStarting in C#.
     .on_navigation(move |url| {
         super::navigation_service::background_navigation_starting(&app_for_bg_nav, url)
     })
     // Block all window.open / target=_blank.
-    .on_new_window(|_url, _features| {
+    .on_new_window(|url, _features| {
+        if cfg!(debug_assertions) {
+            eprintln!("[on_new_window] Background: {}", url.as_str());
+        }
         tauri::webview::NewWindowResponse::Deny
     })
     .on_page_load(move |_wv, payload| {
         let state = app_for_bg.state::<AppState>();
         match payload.event() {
             tauri::webview::PageLoadEvent::Started => {
-                if cfg!(debug_assertions) {
-                    eprintln!("[PL_LOCK] >>> set_bg_page_loaded(false) thread={:?}", std::thread::current().id());
-                }
+                log::info!("[PAGE] Background started: {}", payload.url());
                 state.navigation.set_background_page_loaded(false);
-                if cfg!(debug_assertions) {
-                    eprintln!("[PL_LOCK] <<< set_bg_page_loaded(false) thread={:?}", std::thread::current().id());
-                    eprintln!("[PAGE] Background started: {}", payload.url());
-                }
             }
             tauri::webview::PageLoadEvent::Finished => {
-                if cfg!(debug_assertions) {
-                    eprintln!("[PL_LOCK] >>> set_bg_page_loaded(true) thread={:?}", std::thread::current().id());
-                }
+                log::info!("[PAGE] Background finished: {}", payload.url());
                 state.navigation.set_background_page_loaded(true);
-                if cfg!(debug_assertions) {
-                    eprintln!("[PL_LOCK] <<< set_bg_page_loaded(true) thread={:?}", std::thread::current().id());
-                    eprintln!("[PAGE] Background finished: {}", payload.url());
-                }
             }
         }
     })
     .build()?;
 
-    info!("Background webview created (uuid: {})", background_uuid);
+    // Apply platform-specific security settings
+    if let Err(error) = super::webview_security::harden(&background_window) {
+        error!("[Webview] Failed to harden background webview: {}", error);
+    }
 
     #[cfg(debug_assertions)]
-    {
-        rendered_window.open_devtools();
-        background_window.open_devtools();
-    }
+    background_window.open_devtools();
 
-    #[cfg(not(debug_assertions))]
-    {
-        let _ = rendered_window;
-        let _ = background_window;
-    }
+    info!("Background webview created (uuid: {})", background_uuid);
 
     Ok(())
 }

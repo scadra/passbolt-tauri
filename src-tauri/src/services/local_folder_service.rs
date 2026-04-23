@@ -134,6 +134,8 @@ fn generate_rendered_csp(ctx: &IndexContext) -> String {
 
     let mut parts = vec![
         "default-src 'none'".to_string(),
+        "base-uri 'none'".to_string(),
+        "object-src 'none'".to_string(),
         "form-action 'none'".to_string(),
     ];
     if !frame_src.is_empty() {
@@ -162,6 +164,8 @@ fn generate_background_csp(ctx: &IndexContext) -> String {
 
     let mut parts = vec![
         "default-src 'none'".to_string(),
+        "base-uri 'none'".to_string(),
+        "object-src 'none'".to_string(),
         "form-action 'none'".to_string(),
     ];
     if !frame_src.is_empty() {

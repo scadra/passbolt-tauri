@@ -1,20 +1,27 @@
 /**
  * Passbolt ~ Open source password manager for teams
- * Copyright (c) 2023 Passbolt SA (https://www.passbolt.com)
+ * Copyright (c) Passbolt SA (https://www.passbolt.com)
  *
  * Licensed under GNU Affero General Public License version 3 of the or any later version.
  * For full copyright and license information, please see the LICENSE.txt
  * Redistributions of files must retain the above copyright notice.
  *
- * @copyright     Copyright (c) 2023 Passbolt SA (https://www.passbolt.com)
+ * @copyright     Copyright (c) Passbolt SA (https://www.passbolt.com)
  * @license       https://opensource.org/licenses/AGPL-3.0 AGPL License
  * @link          https://www.passbolt.com Passbolt(tm)
  * @since         0.0.1
  */
 
+import { renderedStore } from "./IPCHandler";
+
+/**
+ * Storage abstraction for the Rendered webview.
+ *
+ * Reads from renderedStore (in-memory Map) fed by IPCHandler._handleEarlyStorageSync.
+ * No size limit — handles resources (~15MB) without hitting sessionStorage/localStorage quotas.
+ */
 class WebviewStorage {
   constructor() {
-    // Initialize the listeners array and storage event listener
     this._listeners = [];
     this._storageEventListener = null;
   }
@@ -74,26 +81,28 @@ class WebviewStorage {
   }
 
   async getStorage(key) {
-    const value = localStorage.getItem(key);
+    const actualKey = Array.isArray(key) ? key[0] : key;
+    // renderedStore first, sessionStorage fallback for _passbolt_data after navigation
+    const value = renderedStore.get(actualKey) ?? sessionStorage.getItem(actualKey) ?? null;
     try {
-      return {[key]: JSON.parse(value)};
+      return {[actualKey]: value !== null ? JSON.parse(value) : null};
     } catch {
-      return {[key]: value};
+      return {[actualKey]: value};
     }
   }
 
   setStorage(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
+    renderedStore.set(key, JSON.stringify(value));
     this._triggerStorageEvent(key, JSON.stringify(value));
   }
 
   removeStorage(key) {
-    localStorage.removeItem(key);
+    renderedStore.delete(key);
     this._triggerStorageEvent(key, null);
   }
 
   clearStorage() {
-    localStorage.clear();
+    renderedStore.clear();
     this._triggerStorageEvent(null, null);
   }
 

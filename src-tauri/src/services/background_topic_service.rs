@@ -1,4 +1,4 @@
-use log::debug;
+use log::{debug, warn};
 use tauri::AppHandle;
 
 use crate::config;
@@ -9,12 +9,10 @@ use crate::topics::locale_storage_topics::LocalStorageTopics;
 use super::topics::{handlers, background_handlers as bg};
 
 /// Routes messages coming **from** the Background webview.
+#[derive(Default)]
 pub struct BackgroundTopicService;
 
 impl BackgroundTopicService {
-    pub fn new() -> Self {
-        Self
-    }
 
     pub fn handle(&self, app: &AppHandle, state: &AppState, ipc: IpcMessage) {
         debug!("[BackgroundTopic] Processing: {}", ipc.topic);
@@ -35,6 +33,13 @@ impl BackgroundTopicService {
             | config::BACKGROUND_SET_SECURITY_TOKEN => bg::handle_vault_write(app, state, ipc),
             config::BACKGROUND_ROTATE_KEY => bg::handle_rotate_key(&ipc),
 
+            // Session expired: prepare auth mode, then forward dialog to Rendered.
+            // The user will click "Sign in" → `tab.reload` → reloads in Auth mode.
+            config::BACKGROUND_AFTER_LOGOUT => {
+                bg::handle_after_logout(app, state, ipc);
+            }
+
+            // Forward to Rendered (buffered if not ready yet)
             t if t == LocalStorageTopics::BACKGROUND_LOCALSTORAGE_UPDATE
                 || t == LocalStorageTopics::BACKGROUND_LOCALSTORAGE_DELETE
                 || t == LocalStorageTopics::BACKGROUND_LOCALSTORAGE_CLEAR =>
@@ -42,12 +47,21 @@ impl BackgroundTopicService {
                 handlers::buffer_or_forward_to_rendered(app, state, ipc);
             }
 
-            config::BACKGROUND_CLIPBOARD => bg::handle_clipboard(&ipc),
+            config::BACKGROUND_CLIPBOARD
+            | config::BACKGROUND_CLIPBOARD_SET_TEXT => bg::handle_clipboard(&ipc),
             config::BACKGROUND_DOWNLOAD_FILE => bg::handle_download_file(&ipc),
             config::BACKGROUND_GET_COOKIE => bg::handle_get_cookie(app, state, &ipc),
             config::BACKGROUND_HTTP_FETCH => bg::handle_http_fetch(app, state, &ipc),
 
-            _ => bg::handle_response_forward(app, state, ipc),
+            // The catch-all handles response forwarding where the topic IS the requestId (a UUID).
+            // If it doesn't look like a UUID, it's an unexpected topic — log and drop.
+            unknown_topic => {
+                if !super::rendered_topic_service::is_valid_uuid(unknown_topic) {
+                    warn!("[BackgroundTopic] Unknown non-UUID topic, dropping: {}", unknown_topic);
+                    return;
+                }
+                bg::handle_response_forward(app, state, ipc)
+            }
         }
     }
 }

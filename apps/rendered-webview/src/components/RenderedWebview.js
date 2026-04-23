@@ -1,12 +1,12 @@
 /**
  * Passbolt ~ Open source password manager for teams
- * Copyright (c) 2023 Passbolt SA (https://www.passbolt.com)
+ * Copyright (c) Passbolt SA (https://www.passbolt.com)
  *
  * Licensed under GNU Affero General Public License version 3 of the or any later version.
  * For full copyright and license information, please see the LICENSE.txt
  * Redistributions of files must retain the above copyright notice.
  *
- * @copyright     Copyright (c) 2023 Passbolt SA (https://www.passbolt.com)
+ * @copyright     Copyright (c) Passbolt SA (https://www.passbolt.com)
  * @license       https://opensource.org/licenses/AGPL-3.0 AGPL License
  * @link          https://www.passbolt.com Passbolt(tm)
  * @since         0.3.0
@@ -63,7 +63,8 @@ class RenderedWebview extends React.Component {
   handleLocalStorageUpdate(data) {
     try {
       const {key, value} = data;
-      localStorage.setItem(key, value);
+      // _handleEarlyStorageSync in IPCHandler already wrote to the store.
+      // We still dispatch the StorageEvent for React components listening.
 
       if (key === "resources" && !this.state.isReady) {
         this.props.port.request("passbolt.rendered.is-ready");
@@ -79,7 +80,7 @@ class RenderedWebview extends React.Component {
    * handle the localstorage clear
    */
   handleLocalStorageClear() {
-    localStorage.clear();
+    // No-op — early sync in IPCHandler handles the renderedStore
   }
 
   /**
@@ -87,8 +88,7 @@ class RenderedWebview extends React.Component {
    * @param {object} data
    */
   handleLocalStorageDelete(data) {
-    const key = typeof data === 'object' ? data.key : data;
-    localStorage.removeItem(key);
+    // No-op — early sync in IPCHandler handles the renderedStore
   }
 
   /**

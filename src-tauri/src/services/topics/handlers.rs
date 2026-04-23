@@ -7,7 +7,7 @@
 //! If either check fails, the message is buffered in `pending_messages` and
 //! replayed when `RENDERED_READY` fires.
 
-use log::{warn, debug};
+use log::{info, warn, debug};
 use tauri::{AppHandle, Emitter, Manager};
 
 use crate::config;
@@ -30,12 +30,18 @@ mod diag {
     pub fn tid() -> std::thread::ThreadId { std::thread::current().id() }
 }
 
+/// Debug-only logging macro. Compiles to nothing in release.
+///
+/// Uses a nested function trick to avoid `#[cfg]` on expressions
+/// (which requires unstable `stmt_expr_attributes` on MSRV 1.77.2).
+#[cfg(debug_assertions)]
 macro_rules! diag_log {
-    ($($arg:tt)*) => {
-        if cfg!(debug_assertions) {
-            eprintln!($($arg)*)
-        }
-    };
+    ($($arg:tt)*) => { eprintln!($($arg)*) };
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! diag_log {
+    ($($arg:tt)*) => {};
 }
 
 // --- Public API ---
@@ -58,17 +64,14 @@ pub fn forward_to_rendered(app: &AppHandle, ipc: &IpcMessage) {
     }
 
     #[cfg(debug_assertions)]
-    let s = diag::seq();
-    #[cfg(not(debug_assertions))]
-    let s = 0u64;
+    let diag_seq = diag::seq();
 
     diag_log!("[EMIT] #{} >>> rendered topic={} thread={:?} t={}ms",
-        s, ipc.topic, diag::tid(), diag::ms());
+        diag_seq, ipc.topic, diag::tid(), diag::ms());
 
     let app = app.clone();
     let ipc = ipc.clone();
     tauri::async_runtime::spawn(async move {
-
         #[cfg(debug_assertions)]
         let t0 = std::time::Instant::now();
 
@@ -79,9 +82,9 @@ pub fn forward_to_rendered(app: &AppHandle, ipc: &IpcMessage) {
             let dt = t0.elapsed();
             match &result {
                 Ok(_) => diag_log!("[EMIT] #{} <<< rendered topic={} dt={:?} thread={:?} t={}ms",
-                    s, ipc.topic, dt, diag::tid(), diag::ms()),
+                    diag_seq, ipc.topic, dt, diag::tid(), diag::ms()),
                 Err(e) => diag_log!("[EMIT] #{} !!! rendered topic={} err={} thread={:?} t={}ms",
-                    s, ipc.topic, e, diag::tid(), diag::ms()),
+                    diag_seq, ipc.topic, e, diag::tid(), diag::ms()),
             }
         }
         let _ = result;
@@ -107,17 +110,14 @@ pub fn forward_to_background(app: &AppHandle, ipc: &IpcMessage) {
     }
 
     #[cfg(debug_assertions)]
-    let s = diag::seq();
-    #[cfg(not(debug_assertions))]
-    let s = 0u64;
+    let diag_seq = diag::seq();
 
     diag_log!("[EMIT] #{} >>> background topic={} thread={:?} t={}ms",
-        s, ipc.topic, diag::tid(), diag::ms());
+        diag_seq, ipc.topic, diag::tid(), diag::ms());
 
     let app = app.clone();
     let ipc = ipc.clone();
     tauri::async_runtime::spawn(async move {
-
         #[cfg(debug_assertions)]
         let t0 = std::time::Instant::now();
 
@@ -128,9 +128,9 @@ pub fn forward_to_background(app: &AppHandle, ipc: &IpcMessage) {
             let dt = t0.elapsed();
             match &result {
                 Ok(_) => diag_log!("[EMIT] #{} <<< background topic={} dt={:?} thread={:?} t={}ms",
-                    s, ipc.topic, dt, diag::tid(), diag::ms()),
+                    diag_seq, ipc.topic, dt, diag::tid(), diag::ms()),
                 Err(e) => diag_log!("[EMIT] #{} !!! background topic={} err={} thread={:?} t={}ms",
-                    s, ipc.topic, e, diag::tid(), diag::ms()),
+                    diag_seq, ipc.topic, e, diag::tid(), diag::ms()),
             }
         }
         let _ = result;
@@ -176,21 +176,15 @@ fn remap_topic_for_rendered(mut ipc: IpcMessage) -> IpcMessage {
 
 /// Navigate a webview to a URL.
 pub fn navigate_webview(app: &AppHandle, label: &str, url: &str) {
-    #[cfg(debug_assertions)]
-    let s = diag::seq();
-    #[cfg(not(debug_assertions))]
-    let s = 0u64;
-
-    diag_log!("[NAV] #{} >>> {} to {} thread={:?} t={}ms",
-        s, label, url, diag::tid(), diag::ms());
+    info!("[NAV] {} → {}", label, url);
 
     if let Some(window) = app.get_webview_window(label) {
         let parsed: tauri::Url = url.parse().unwrap();
-        let _ = window.navigate(parsed);
+        match window.navigate(parsed) {
+            Ok(_) => info!("[NAV] {} navigation dispatched", label),
+            Err(error) => warn!("[NAV] {} navigation failed: {}", label, error),
+        }
     } else {
-        warn!("[IPC] Webview not found: {}", label);
+        warn!("[NAV] Webview not found: {}", label);
     }
-
-    diag_log!("[NAV] #{} <<< {} done thread={:?} t={}ms",
-        s, label, diag::tid(), diag::ms());
 }

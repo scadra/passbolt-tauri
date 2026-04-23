@@ -12,12 +12,15 @@ pub struct CookieState {
     cookies: Arc<Mutex<HashMap<String, String>>>,
 }
 
-impl CookieState {
-    pub fn new() -> Self {
+impl Default for CookieState {
+    fn default() -> Self {
         Self {
             cookies: Arc::new(Mutex::new(HashMap::new())),
         }
     }
+}
+
+impl CookieState {
 
     /// Store a cookie name=value pair (extracted from Set-Cookie headers).
     pub fn set_cookie(&self, name: &str, value: &str) {

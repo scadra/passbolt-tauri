@@ -52,10 +52,15 @@ import UserPassphrasePoliciesContextProvider from "passbolt-styleguide/src/react
 import HandlePassphraseEntryEvents
   from "passbolt-styleguide/src/react-extension/components/AuthenticationPassphrase/HandlePassphraseEntryEvents/HandlePassphraseEntryEvents";
 import PasswordExpirySettingsContextProvider from "passbolt-styleguide/src/react-extension/contexts/PasswordExpirySettingsContext";
+import ExportPoliciesSettingsContextProvider from "passbolt-styleguide/src/react-extension/contexts/ExportPoliciesSettingsContext";
 import ProgressContextProvider from "passbolt-styleguide/src/react-extension/contexts/ProgressContext";
+import ManagedClipboardServiceProvider from "passbolt-styleguide/src/react-extension/contexts/Clipboard/ManagedClipboardServiceProvider";
 import MetadataTypesSettingsLocalStorageContextProvider from "passbolt-styleguide/src/shared/context/MetadataTypesSettingsLocalStorageContext/MetadataTypesSettingsLocalStorageContext";
 import ResourceTypesLocalStorageContextProvider from "passbolt-styleguide/src/shared/context/ResourceTypesLocalStorageContext/ResourceTypesLocalStorageContext";
 import DisplayUserSettingsWorkspace from "passbolt-styleguide/src/react-extension/components/UserSetting/DisplayUserSettingsWorkspace/DisplayUserSettingsWorkspace";
+import {ResizableSidebarContextProvider} from "passbolt-styleguide/src/react-extension/contexts/ResizeSidebar/ResizeSidebarContext";
+import SecretRevisionsSettingsContextProvider from "passbolt-styleguide/src/shared/context/SecretRevisionSettingsContext/SecretRevisionsSettingsContext";
+import RoleContextProvider from "passbolt-styleguide/src/react-extension/contexts/RoleContext";
 
 /**
  * The passbolt application served by the desktop.
@@ -88,9 +93,11 @@ class AppWorkspace extends Component {
                       <WorkflowContextProvider>
                         <MfaContextProvider>
                           <ActionFeedbackContextProvider>
+                            <ManagedClipboardServiceProvider>
                             <DialogContextProvider>
                               <AnnouncementContextProvider>
                                 <ContextualMenuContextProvider>
+                                  <RoleContextProvider>
                                   <LoadingContextProvider>
                                     <ProgressContextProvider>
                                       { /* Action Feedback Management */}
@@ -112,26 +119,31 @@ class AppWorkspace extends Component {
                                               "/app/passwords",
                                             ]}>
                                               <PasswordExpirySettingsContextProvider>
+                                                <ExportPoliciesSettingsContextProvider>
                                                 <ResourceWorkspaceContextProvider>
                                                   <MetadataTypesSettingsLocalStorageContextProvider>
                                                     <ResourceTypesLocalStorageContextProvider>
+                                                      <SecretRevisionsSettingsContextProvider>
                                                       <ResourcePasswordGeneratorContextProvider>
                                                         <ManageDialogs />
                                                         <ManageWorkflows />
                                                         <ManageContextualMenu />
-                                                        <ManageAnnouncements />
                                                         <DragContextProvider>
+                                                          <ResizableSidebarContextProvider>
                                                           <div id="container" className="page password">
                                                             <div id="app" className="app ready" tabIndex="1000">
                                                               <ResourcesWebviewContext />
                                                               <DisplayResourcesWorkspace onMenuItemClick={this.handleWorkspaceSelect} />
                                                             </div>
                                                           </div>
+                                                          </ResizableSidebarContextProvider>
                                                         </DragContextProvider>
                                                       </ResourcePasswordGeneratorContextProvider>
+                                                      </SecretRevisionsSettingsContextProvider>
                                                     </ResourceTypesLocalStorageContextProvider>
                                                   </MetadataTypesSettingsLocalStorageContextProvider>
                                                 </ResourceWorkspaceContextProvider>
+                                                </ExportPoliciesSettingsContextProvider>
                                               </PasswordExpirySettingsContextProvider>
                                             </Route>
                                             {/* Users workspace */}
@@ -145,12 +157,15 @@ class AppWorkspace extends Component {
                                                 <ManageDialogs />
                                                 <ManageWorkflows />
                                                 <ManageContextualMenu />
-                                                <ManageAnnouncements />
-                                                <div id="container" className="page user">
-                                                  <div id="app" className="app ready" tabIndex="1000">
-                                                    <DisplayUserWorkspace />
+                                                <DragContextProvider>
+                                                  <ResizableSidebarContextProvider>
+                                                  <div id="container" className="page user">
+                                                    <div id="app" className="app ready" tabIndex="1000">
+                                                      <DisplayUserWorkspace />
+                                                    </div>
                                                   </div>
-                                                </div>
+                                                  </ResizableSidebarContextProvider>
+                                                </DragContextProvider>
                                               </UserWorkspaceContextProvider>
                                             </Route>
                                             {/* User settings workspace */}
@@ -176,9 +191,11 @@ class AppWorkspace extends Component {
                                       </Router>
                                     </ProgressContextProvider>
                                   </LoadingContextProvider>
+                                  </RoleContextProvider>
                                 </ContextualMenuContextProvider>
                               </AnnouncementContextProvider>
                             </DialogContextProvider>
+                          </ManagedClipboardServiceProvider>
                           </ActionFeedbackContextProvider>
                         </MfaContextProvider>
                       </WorkflowContextProvider>

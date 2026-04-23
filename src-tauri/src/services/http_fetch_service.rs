@@ -5,65 +5,43 @@
 //! IPC event system, and this service makes the actual request via `reqwest`.
 
 use std::collections::HashMap;
-use serde_json::{json, Value};
 
+use crate::models::fetch_response::FetchResponse;
+use crate::models::http_fetch_request::HttpFetchRequest;
 use crate::state::cookie_state::CookieState;
 
 const PWNEDPASSWORDS_URL: &str = "https://api.pwnedpasswords.com";
 
 /// Handle a fetch request received via IPC from the Background webview.
 ///
-/// Expects `request_data` to be a JSON object with:
-/// - `url` (String): the HTTPS URL to fetch
-/// - `method` (String): HTTP method (GET, POST, etc.)
-/// - `headers` (Object): request headers as key-value pairs
-/// - `body` (String|null): optional request body
-///
-/// Returns a JSON object with:
-/// - `status` (u16): HTTP status code
-/// - `headers` (Object): response headers
-/// - `body` (String): response body as text
+/// Returns a `FetchResponse` containing the HTTP status, headers, and body.
 pub async fn handle_fetch(
-    request_data: &Value,
+    request: &HttpFetchRequest,
     trusted_domain: Option<&str>,
     cookies: &CookieState,
-) -> Value {
-    let url = match request_data.get("url").and_then(|v| v.as_str()) {
-        Some(u) => u,
-        None => return error_json(400, "Missing or invalid 'url' field"),
-    };
-
-    let method_str = request_data.get("method")
-        .and_then(|v| v.as_str())
-        .unwrap_or("GET");
-
-    let req_headers = extract_headers(request_data);
-
-    let body = request_data.get("body")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-
+) -> FetchResponse {
     if cfg!(debug_assertions) {
-        eprintln!("[HTTP] >>> {} {} headers={}", method_str, url, req_headers.len());
+        eprintln!("[HTTP] >>> {} {} headers={}", request.method, request.url, request.headers.len());
     }
 
-    // Trusted domain check
+    // Trusted domain check — compare parsed host+scheme, not string prefix.
+    // Prevents SSRF where "https://trusted.com.attacker.com" passes a starts_with check.
     let is_trusted = trusted_domain
-        .map(|d| url.starts_with(d))
+        .map(|domain| super::url_validation::is_trusted_origin(&request.url, domain))
         .unwrap_or(false);
-    let is_pwnedpasswords = url.starts_with(PWNEDPASSWORDS_URL);
+    let is_pwnedpasswords = super::url_validation::is_trusted_origin(&request.url, PWNEDPASSWORDS_URL);
 
     if !is_trusted && !is_pwnedpasswords {
         if cfg!(debug_assertions) {
-            eprintln!("[HTTP] !!! BLOCKED untrusted domain: {} (trusted={:?})", url, trusted_domain);
+            eprintln!("[HTTP] !!! BLOCKED untrusted domain: {} (trusted={:?})", request.url, trusted_domain);
         }
-        return error_json(403, &format!("Unauthorized domain: {}", url));
+        return FetchResponse::error(403, &format!("Unauthorized domain: {}", request.url));
     }
 
     // Parse method
-    let method: reqwest::Method = match method_str.parse() {
-        Ok(m) => m,
-        Err(_) => return error_json(400, &format!("Invalid method: {}", method_str)),
+    let method: reqwest::Method = match request.method.parse() {
+        Ok(parsed) => parsed,
+        Err(_) => return FetchResponse::error(400, &format!("Invalid method: {}", request.method)),
     };
 
     // Handle OPTIONS preflight
@@ -71,31 +49,20 @@ pub async fn handle_fetch(
         if cfg!(debug_assertions) {
             eprintln!("[HTTP] <<< OPTIONS preflight → 200");
         }
-        return json!({
-            "status": 200,
-            "headers": {
-                "access-control-allow-origin": "*",
-                "access-control-allow-credentials": "true",
-                "access-control-allow-methods": "DELETE, POST, GET, OPTIONS, PUT",
-                "access-control-allow-headers": "Content-Type, Authorization, X-Requested-With, x-csrf-token"
-            },
-            "body": ""
-        });
+        return FetchResponse::preflight();
     }
 
     // Build reqwest client — follow redirects (matches C# HttpClient default behaviour).
     // Required for MFA: GET /auth/is-authenticated.json → 302 → /mfa/verify/error.json
-    let client = match reqwest::Client::builder()
-        .build()
-    {
-        Ok(c) => c,
-        Err(e) => return error_json(500, &format!("Client error: {}", e)),
+    let client = match reqwest::Client::builder().build() {
+        Ok(built) => built,
+        Err(error) => return FetchResponse::error(500, &format!("Client error: {}", error)),
     };
 
     // Build request
-    let mut req_builder = client.request(method.clone(), url);
+    let mut req_builder = client.request(method.clone(), &request.url);
 
-    for (key, value) in &req_headers {
+    for (key, value) in &request.headers {
         req_builder = req_builder.header(key, value);
     }
 
@@ -104,26 +71,28 @@ pub async fn handle_fetch(
         req_builder = req_builder.header("cookie", &cookie_header);
     }
 
-    if !body.is_empty() {
-        req_builder = req_builder.body(body.to_string());
+    if let Some(ref body) = request.body {
+        if !body.is_empty() {
+            req_builder = req_builder.body(body.clone());
+        }
     }
 
     // Send request
     let response = match req_builder.send().await {
-        Ok(r) => r,
-        Err(e) => {
+        Ok(resp) => resp,
+        Err(error) => {
             if cfg!(debug_assertions) {
-                eprintln!("[HTTP] !!! request error: {}", e);
+                eprintln!("[HTTP] !!! request error: {}", error);
             }
-            return error_json(502, &format!("Request failed: {}", e));
+            return FetchResponse::error(502, &format!("Request failed: {}", error));
         }
     };
 
     let status = response.status().as_u16();
 
     // Harvest Set-Cookie headers
-    for value in response.headers().get_all("set-cookie").iter() {
-        if let Ok(cookie_str) = value.to_str() {
+    for header_value in response.headers().get_all("set-cookie").iter() {
+        if let Ok(cookie_str) = header_value.to_str() {
             if let Some(name_value) = cookie_str.split(';').next() {
                 if let Some((name, val)) = name_value.split_once('=') {
                     cookies.set_cookie(name.trim(), val.trim());
@@ -138,50 +107,26 @@ pub async fn handle_fetch(
     // Collect response headers
     let mut resp_headers = HashMap::new();
     for (key, value) in response.headers().iter() {
-        if let Ok(v) = value.to_str() {
-            resp_headers.insert(key.as_str().to_string(), v.to_string());
+        if let Ok(str_value) = value.to_str() {
+            resp_headers.insert(key.as_str().to_string(), str_value.to_string());
         }
     }
 
     // Read body as text
     let resp_body = match response.text().await {
-        Ok(t) => t,
-        Err(e) => {
+        Ok(text) => text,
+        Err(error) => {
             if cfg!(debug_assertions) {
-                eprintln!("[HTTP] !!! body read error: {}", e);
+                eprintln!("[HTTP] !!! body read error: {}", error);
             }
-            return error_json(502, &format!("Body read error: {}", e));
+            return FetchResponse::error(502, &format!("Body read error: {}", error));
         }
     };
 
     if cfg!(debug_assertions) {
         let preview = &resp_body[..resp_body.len().min(100)];
-        eprintln!("[HTTP] <<< {} {} → {} ({}B) body={}...", method, url, status, resp_body.len(), preview);
+        eprintln!("[HTTP] <<< {} {} → {} ({}B) body={}...", method, request.url, status, resp_body.len(), preview);
     }
 
-    json!({
-        "status": status,
-        "headers": resp_headers,
-        "body": resp_body
-    })
-}
-
-fn extract_headers(request_data: &Value) -> HashMap<String, String> {
-    let mut headers = HashMap::new();
-    if let Some(obj) = request_data.get("headers").and_then(|v| v.as_object()) {
-        for (key, value) in obj {
-            if let Some(v) = value.as_str() {
-                headers.insert(key.clone(), v.to_string());
-            }
-        }
-    }
-    headers
-}
-
-fn error_json(status: u16, message: &str) -> Value {
-    json!({
-        "status": status,
-        "headers": {},
-        "body": message
-    })
+    FetchResponse::new(status, resp_headers, resp_body)
 }

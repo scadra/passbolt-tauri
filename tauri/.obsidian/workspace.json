@@ -1,0 +1,232 @@
+{
+  "main": {
+    "id": "624292e664bed0d9",
+    "type": "split",
+    "children": [
+      {
+        "id": "9f67609efda1d459",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "7484a0ab25420cdf",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "architecture/01 - Overview.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "01 - Overview"
+            }
+          },
+          {
+            "id": "95e7bcbbf357a047",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "architecture/04 - IPC Layer.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "04 - IPC Layer"
+            }
+          }
+        ],
+        "currentTab": 1
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "29b55bc0dfacc8b8",
+    "type": "split",
+    "children": [
+      {
+        "id": "d129c279fb6db2f5",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "8ed82f50c3c45452",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "93b885024443bafa",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "913208b6fb82ccbd",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "9df46776eda86636",
+    "type": "split",
+    "children": [
+      {
+        "id": "263f2d86017f76f3",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "ebfb0d926273d0a3",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "architecture/04 - IPC Layer.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks for 04 - IPC Layer"
+            }
+          },
+          {
+            "id": "535e294990473cdf",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "architecture/04 - IPC Layer.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links from 04 - IPC Layer"
+            }
+          },
+          {
+            "id": "fe5705161556e7df",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "dfa600543ea0aa4e",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "3c221a2b7f383f4c",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "architecture/04 - IPC Layer.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline of 04 - IPC Layer"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false
+    }
+  },
+  "active": "95e7bcbbf357a047",
+  "lastOpenFiles": [
+    "architecture/09 - Security Layers.md",
+    "security/01- Isolation Pattern.md",
+    "architecture/04 - IPC Layer.md",
+    "security",
+    "architecture/03 - Webviews.md",
+    "architecture/03 - IPC Layer.md",
+    "architecture/11 - Build & Config.md",
+    "architecture/10 - JavaScript Layer.md",
+    "architecture/08 - State.md",
+    "architecture/07 - Protocol Handler.md",
+    "architecture/06 - Routing.md",
+    "architecture/05 - Topic System.md",
+    "architecture/03 - Rust Modules.md",
+    "architecture/01 - Overview.md",
+    "architecture/02 - Structure.md",
+    "architecture/1. Overview.md",
+    "architecture/10 - Build & Config.md",
+    "architecture/09 - JavaScript Layer.md",
+    "architecture/08 - Security Layers.md",
+    "architecture/07 - State.md",
+    "architecture/06 - Protocol Handler.md",
+    "architecture/05 - Routing.md",
+    "architecture/04 - Topic System.md",
+    "architecture/JavaScript Layer.md",
+    "architecture/State.md",
+    "architecture/Topic System.md",
+    "architecture/IPC Layer.md",
+    "architecture"
+  ]
+}

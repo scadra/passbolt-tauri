@@ -25,8 +25,8 @@ pub struct NavigationState {
     mfa_active: Mutex<bool>,
 }
 
-impl NavigationState {
-    pub fn new() -> Self {
+impl Default for NavigationState {
+    fn default() -> Self {
         Self {
             background_ready: Mutex::new(false),
             rendered_ready: Mutex::new(false),
@@ -40,6 +40,9 @@ impl NavigationState {
             mfa_active: Mutex::new(false),
         }
     }
+}
+
+impl NavigationState {
 
     // --- Ready flags ---
 

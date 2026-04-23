@@ -15,6 +15,12 @@
 import { listen, emit as tauriEmit } from '@tauri-apps/api/event';
 import { v4 as uuidv4 } from "uuid";
 
+/**
+ * In-memory store for the Rendered webview — fed by IPC sync from Background.
+ * Exported so WebviewStorage can read from it.
+ */
+export const renderedStore = new Map();
+
 class IPCHandler {
   constructor() {
     this._listeners = {};
@@ -37,6 +43,11 @@ class IPCHandler {
     const eventData = event.payload;
     const eventName = eventData.topic ? eventData.topic : eventData.requestId;
     console.log('[Rendered IPC] Received event:', eventName, 'message:', eventData.message, 'hasListeners:', Array.isArray(this._listeners[eventName]));
+
+    // Write localStorage updates to sessionStorage immediately, BEFORE checking
+    // for listeners. This ensures the store is populated even if the
+    // RenderedWebview component hasn't mounted yet (timing fix for _passbolt_data).
+    this._handleEarlyStorageSync(eventData);
 
     if (Array.isArray(this._listeners[eventName])) {
       const listeners = this._listeners[eventName];
@@ -73,6 +84,33 @@ class IPCHandler {
           i--;
         }
       }
+    }
+  }
+
+  /**
+   * Write storage sync messages to the in-memory store immediately on arrival.
+   * This runs BEFORE the listener dispatch, so the store is always up to date
+   * even if RenderedWebview hasn't mounted yet (fixes _passbolt_data timing).
+   *
+   * Uses a module-level Map (renderedStore) — no size limit.
+   */
+  _handleEarlyStorageSync(eventData) {
+    const topic = eventData.topic;
+    if (topic === 'passbolt.rendered.localstorage-update' && eventData.message) {
+      const {key, value} = eventData.message;
+      if (key) {
+        renderedStore.set(key, value);
+        // _passbolt_data must survive page navigation (auth → workspace, MFA → workspace).
+        // sessionStorage persists within the same webview session.
+        if (key === '_passbolt_data') {
+          try { sessionStorage.setItem(key, value); } catch {}
+        }
+      }
+    } else if (topic === 'passbolt.rendered.localstorage-delete' && eventData.message) {
+      const key = typeof eventData.message === 'object' ? eventData.message.key : eventData.message;
+      renderedStore.delete(key);
+    } else if (topic === 'passbolt.rendered.localstorage-clear') {
+      renderedStore.clear();
     }
   }
 

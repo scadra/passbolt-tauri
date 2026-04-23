@@ -70,6 +70,11 @@ impl ProtocolService {
         let host = parsed.host_str().unwrap_or("");
         let path = parsed.path().trim_start_matches('/');
 
+        // Security: post-parse path traversal check (catches URL-encoded sequences like %2e%2e)
+        if path.contains("..") {
+            return error_response(StatusCode::FORBIDDEN, "Path traversal detected");
+        }
+
         // Validate host ends with .passbolt.local
         if !host.ends_with(config::DOMAIN_SUFFIX) {
             return error_response(StatusCode::FORBIDDEN, "Invalid domain");
@@ -183,6 +188,11 @@ pub fn handle_protocol_request(
     let host = parsed.host_str().unwrap_or("");
     let path = parsed.path().trim_start_matches('/');
 
+    // Security: post-parse path traversal check (catches URL-encoded sequences like %2e%2e)
+    if path.contains("..") {
+        return error_response(StatusCode::FORBIDDEN, "Path traversal detected");
+    }
+
     if !host.ends_with(config::DOMAIN_SUFFIX) {
         return error_response(StatusCode::FORBIDDEN, "Invalid domain");
     }
@@ -243,10 +253,8 @@ fn serve_img_asset(asset_path: &str) -> Response<Vec<u8>> {
 }
 
 fn serve_embedded_file(data: Option<rust_embed::EmbeddedFile>, asset_path: &str) -> Response<Vec<u8>> {
-    if data.is_none() {
-        if cfg!(debug_assertions) {
-            eprintln!("[PROTO] 404 asset_path={}", asset_path);
-        }
+    if data.is_none() && cfg!(debug_assertions) {
+        eprintln!("[PROTO] 404 asset_path={}", asset_path);
     }
     match data {
         Some(file) => {

@@ -12,16 +12,12 @@ use crate::topics::progress_topics::ProgressTopics;
 use super::topics::{handlers, rendered_handlers as rv};
 
 /// Validates and routes messages coming **from** the Rendered webview.
+#[derive(Default)]
 pub struct RenderedTopicService {
     allowed_topics: AllowedTopics,
 }
 
 impl RenderedTopicService {
-    pub fn new() -> Self {
-        Self {
-            allowed_topics: AllowedTopics::new(),
-        }
-    }
 
     pub fn handle(&self, app: &AppHandle, state: &AppState, ipc: IpcMessage) {
         if !self.allowed_topics.is_allowed(&ipc.topic) {
@@ -43,6 +39,8 @@ impl RenderedTopicService {
             config::RENDERED_READY => rv::handle_rendered_ready(app, state),
 
             config::RENDERED_ASSET_FETCH => rv::handle_asset_fetch(app, &ipc),
+
+            config::RENDERED_RELOAD => rv::handle_reload(app, state),
 
             t if t == RbacTopics::FIND_ME => rv::handle_rbac_request(app, state, ipc),
 

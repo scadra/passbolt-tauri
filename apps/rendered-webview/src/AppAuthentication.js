@@ -47,7 +47,6 @@ class AppAuthentication extends Component {
    * listen events
    */
   async listen() {
-    await localStorage.clear();
     this.props.port.on("passbolt.background.is-ready", this.handleBackgroundReady);
     this.props.port.emit("passbolt.rendered.is-ready");
   }

@@ -1,125 +1,47 @@
-class TauriExternalLinksPolyfill {
-    openerPlugin = null;
-    originalWindowOpen = null;
-    isInitialized = false;
-  
-    constructor() {
-      this.init();
-    }
-  
-    /**
-     * Initialize the polyfill
-     */
-    async init() {
-      if (this.isInitialized) return;
-  
-      await this.loadOpenerPlugin();
-      this.originalWindowOpen = window.open;
-      this.overrideWindowOpen();
-      this.isInitialized = true;
-    }
-  
-    /**
-     * Load the Tauri opener plugin
-     */
-    async loadOpenerPlugin() {
-      try {
-        const opener = await import('@tauri-apps/plugin-opener');
-        this.openerPlugin = opener;
-      } catch (error) {
-        console.error('Failed to load opener plugin:', error);
-      }
-    }
-  
-    /**
-     * Determine if URL is external
-     * @param {string} url - The URL to check
-     * @returns {boolean} - True if external, false otherwise
-     */
-    isExternalUrl(url) {
-      if (!url) return false;
-      
-      try {
-        const urlObj = new URL(url, window.location.href);
-        const currentHost = window.location.host;
-        
-        return (
-          urlObj.protocol === 'http:' || 
-          urlObj.protocol === 'https:'
-        ) && urlObj.host !== currentHost;
-      } catch (e) {
-        return /^https?:\/\//.test(url);
-      }
-    }
-  
-    /**
-     * Open external URL using Tauri opener plugin
-     * @param {string} url - The URL to open
-     * @returns {Promise<boolean>} - True if successful, false otherwise
-     */
-    async openExternalUrl(url) {
-      try {
-        if (this.openerPlugin && this.openerPlugin.openUrl) {
-          await this.openerPlugin.openUrl(url);
-          return true;
-        } else {
-          console.error('Opener plugin not available');
-        }
-      } catch (error) {
-        console.error('Failed to open URL with Tauri opener plugin:', error);
-      }
-      
-      return false;
-    }
-  
-    /**
-     * Override window.open to intercept external URLs
-     */
-    overrideWindowOpen() {
-      const self = this;
-      
-      window.open = function(url, target, features) {
-        // Handle external URLs
-        if (self.isExternalUrl(url)) {
-          console.log('Intercepting window.open for external URL:', url);
-          
-          self.openExternalUrl(url).then(success => {
-            if (!success) {
-              console.warn('Opener plugin failed, falling back to original window.open');
-              self.originalWindowOpen.call(window, url, target, features);
-            }
-          }).catch(error => {
-            console.error('Error in window.open polyfill:', error);
-            self.originalWindowOpen.call(window, url, target, features);
-          });
-          
-          // Return a mock window object to prevent errors
-          return self.createMockWindow();
-        }
-        
-        // For internal URLs, use original window.open
-        return self.originalWindowOpen.call(window, url, target, features);
-      };
-    }
-  
-    /**
-     * Create a mock window object for window.open return value
-     * @returns {Object} - Mock window object
-     */
-    createMockWindow() {
-      return {
-        closed: false,
-        close: () => {},
-        focus: () => {},
-        blur: () => {},
-        postMessage: () => {}
-      };
-    }
+/**
+ * External link polyfill — delegates external URLs to Tauri's on_new_window handler.
+ *
+ * We cannot call @tauri-apps/plugin-opener from JS because the isolation iframe
+ * only allows emit/listen/unlisten — opener commands fail with DataCloneError.
+ * Instead, we call originalWindowOpen() so Tauri's on_new_window Rust handler fires.
+ * The Rust handler checks the whitelist and opens allowed URLs in the system browser.
+ */
+
+const originalWindowOpen = window.open.bind(window);
+
+window.open = function(url, target, features) {
+  if (!url) {
+    return originalWindowOpen(url, target, features);
   }
-  
-  // Auto-initialize when DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => new TauriExternalLinksPolyfill());
-  } else {
-    new TauriExternalLinksPolyfill();
+
+  let isExternal = false;
+  try {
+    const urlObj = new URL(url, window.location.href);
+    isExternal = (urlObj.protocol === 'http:' || urlObj.protocol === 'https:')
+      && urlObj.host !== window.location.host;
+  } catch (error) {
+    isExternal = /^https?:\/\//.test(url);
   }
+
+  if (isExternal) {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('[externalLinkPolyfill] External URL → delegating to on_new_window:', url);
+    }
+    // Call original window.open so Tauri's on_new_window handler fires.
+    // Rust will check the whitelist and open allowed URLs in the system browser.
+    // on_new_window always returns Deny, so no new webview window is created.
+    originalWindowOpen(url, target, features);
+    // Return mock window to prevent caller errors (the real window is denied).
+    return {
+      closed: true,
+      close: () => {},
+      focus: () => {},
+      blur: () => {},
+      postMessage: () => {}
+    };
+  }
+
+  return originalWindowOpen(url, target, features);
+};
+
+console.log('[externalLinkPolyfill] Installed');

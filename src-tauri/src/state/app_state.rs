@@ -5,6 +5,7 @@ use super::cookie_state::CookieState;
 use super::credential_cache::CredentialCache;
 
 /// Thread-safe application state shared across all event handlers.
+#[derive(Default)]
 pub struct AppState {
     pub ipc: IpcState,
     pub navigation: NavigationState,
@@ -15,13 +16,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        Self {
-            ipc: IpcState::new(),
-            navigation: NavigationState::new(),
-            auth: AuthState::new(),
-            cookies: CookieState::new(),
-            credentials: CredentialCache::new(),
-        }
+        Self::default()
     }
 
     /// Reset ready flags and clear pending messages (called on mode transitions).

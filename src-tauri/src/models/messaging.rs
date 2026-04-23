@@ -7,8 +7,8 @@ pub struct AllowedTopics {
     topics: HashSet<String>,
 }
 
-impl AllowedTopics {
-    pub fn new() -> Self {
+impl Default for AllowedTopics {
+    fn default() -> Self {
         let mut topics = HashSet::new();
 
         // Collect all topic values from every topic module
@@ -83,6 +83,12 @@ impl AllowedTopics {
         }
 
         Self { topics }
+    }
+}
+
+impl AllowedTopics {
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Returns true if the topic is known (registered or a pending requestId).

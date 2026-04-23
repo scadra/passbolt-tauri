@@ -6,21 +6,36 @@
 
 /// Check if the URL is an MFA verification page on the trusted domain.
 /// Equivalent of `MfaService.IsMfaUrls(url)`.
+///
+/// Uses parsed URL host comparison instead of string prefix matching
+/// to prevent bypass via `https://trusted.com.attacker.com/mfa/verify/`.
 pub fn is_mfa_url(url: &str, trusted_domain: &str) -> bool {
-    url.starts_with(&format!("{}/mfa/verify/", trusted_domain))
-        || has_mfa_completed(url, trusted_domain)
+    if !super::url_validation::is_trusted_origin(url, trusted_domain) {
+        return false;
+    }
+    let parsed_url = match url::Url::parse(url) {
+        Ok(parsed) => parsed,
+        Err(_) => return false,
+    };
+    parsed_url.path().starts_with("/mfa/verify/") || has_mfa_completed(url, trusted_domain)
 }
 
 /// Check if the URL indicates MFA verification is complete (terminal redirect).
 /// The Passbolt API redirects to `{domain}/` after successful MFA verification.
 /// Equivalent of `MfaService.HasMfaCompleted(url)`.
+///
+/// Uses parsed URL host comparison instead of string equality to be resilient
+/// to trailing slash variations and query parameter additions.
 pub fn has_mfa_completed(url: &str, trusted_domain: &str) -> bool {
-    let root = if trusted_domain.ends_with('/') {
-        trusted_domain.to_string()
-    } else {
-        format!("{}/", trusted_domain)
+    if !super::url_validation::is_trusted_origin(url, trusted_domain) {
+        return false;
+    }
+    let parsed_url = match url::Url::parse(url) {
+        Ok(parsed) => parsed,
+        Err(_) => return false,
     };
-    url == root || url == trusted_domain
+    // MFA completion is indicated by a redirect to the domain root
+    parsed_url.path() == "/" || parsed_url.path().is_empty()
 }
 
 /// Build the MFA verification URL for a given provider.

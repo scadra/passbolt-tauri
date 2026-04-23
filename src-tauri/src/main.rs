@@ -22,7 +22,7 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .manage(AppState::new())
+        .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![debug_ping])
         // passbolt:// — serves embedded webview assets (HTML, JS, CSS, fonts)
         .register_asynchronous_uri_scheme_protocol(config::PROTOCOL_SCHEME, move |ctx, request, responder| {

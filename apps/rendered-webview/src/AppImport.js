@@ -39,7 +39,6 @@ class AppImport extends Component {
   }
 
   async componentDidMount() {
-    await localStorage.clear();
     await this.listen();
   }
 
@@ -60,7 +59,6 @@ class AppImport extends Component {
    * listen events
    */
   async listen() {
-    await localStorage.clear();
     this.props.port.request("passbolt.rendered.is-ready");
   }
 

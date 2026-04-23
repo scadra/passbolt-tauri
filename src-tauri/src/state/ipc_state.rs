@@ -1,39 +1,61 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Mutex;
+use std::time::Instant;
 
 use crate::models::ipc_message::IpcMessage;
+
+/// Maximum age of a request ID before it is considered expired and eligible for cleanup.
+const REQUEST_ID_TTL_SECONDS: u64 = 300;
 
 /// IPC request/response correlation state.
 ///
 /// Manages the three collections that coordinate the async IPC protocol:
-/// - `request_ids`: one-shot whitelist of requestIds awaiting a response
+/// - `request_ids`: one-shot whitelist of requestIds awaiting a response (with creation timestamp for TTL)
 /// - `pending_requests`: requestId → original topic mapping for response interception
 /// - `pending_messages`: buffer for Background→Rendered messages while Rendered boots
 pub struct IpcState {
-    request_ids: Mutex<HashSet<String>>,
+    request_ids: Mutex<HashMap<String, Instant>>,
     pending_requests: Mutex<HashMap<String, String>>,
     pending_messages: Mutex<Vec<IpcMessage>>,
 }
 
-impl IpcState {
-    pub fn new() -> Self {
+impl Default for IpcState {
+    fn default() -> Self {
         Self {
-            request_ids: Mutex::new(HashSet::new()),
+            request_ids: Mutex::new(HashMap::new()),
             pending_requests: Mutex::new(HashMap::new()),
             pending_messages: Mutex::new(Vec::new()),
         }
     }
+}
+
+impl IpcState {
 
     // --- Request ID whitelist ---
 
     /// Register a requestId so the matching response passes validation.
+    /// Also triggers cleanup of expired request IDs (piggyback approach, no separate timer needed).
     pub fn add_request_id(&self, id: &str) {
-        self.request_ids.lock().unwrap().insert(id.to_string());
+        self.cleanup_expired_request_ids();
+        self.request_ids.lock().unwrap().insert(id.to_string(), Instant::now());
     }
 
     /// Consume a request ID (one-shot). Returns true if it was present.
     pub fn proceed_request_id(&self, id: &str) -> bool {
-        self.request_ids.lock().unwrap().remove(id)
+        self.request_ids.lock().unwrap().remove(id).is_some()
+    }
+
+    /// Remove request IDs older than the TTL.
+    /// Called as piggyback on `add_request_id` to prevent leaked IDs from accumulating.
+    fn cleanup_expired_request_ids(&self) {
+        let ttl = std::time::Duration::from_secs(REQUEST_ID_TTL_SECONDS);
+        let mut request_ids = self.request_ids.lock().unwrap();
+        let before_count = request_ids.len();
+        request_ids.retain(|_id, created_at| created_at.elapsed() < ttl);
+        let removed_count = before_count - request_ids.len();
+        if removed_count > 0 {
+            log::debug!("[IPC] Cleaned up {} expired request IDs", removed_count);
+        }
     }
 
     // --- Pending requests (response interception) ---

@@ -12,12 +12,15 @@ pub struct AuthState {
     passphrase: Mutex<Option<String>>,
 }
 
-impl AuthState {
-    pub fn new() -> Self {
+impl Default for AuthState {
+    fn default() -> Self {
         Self {
             passphrase: Mutex::new(None),
         }
     }
+}
+
+impl AuthState {
 
     /// Cache the passphrase for the 2-hop relay.
     pub fn set_passphrase(&self, passphrase: String) {

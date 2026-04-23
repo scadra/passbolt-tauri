@@ -11,19 +11,21 @@ use crate::state::AppState;
 
 /// Wire up IPC event listeners.
 pub fn setup(app: &App) {
-    let rendered_service = RenderedTopicService::new();
-    let background_service = BackgroundTopicService::new();
+    let rendered_service = RenderedTopicService::default();
+    let background_service = BackgroundTopicService;
 
     let app_handle = app.handle().clone();
     app.listen(config::RENDERED_IPC_MESSAGE, move |event| {
         let payload_str = event.payload();
-        match parse_ipc_payload(payload_str) {
-            Ok(ipc) => {
-                let state = app_handle.state::<AppState>();
-                rendered_service.handle(&app_handle, &state, ipc);
-            }
-            Err(e) => {
-                error!("[IPC] Failed to parse rendered message: {} — payload: {}", e, payload_str);
+        if let Some(result) = parse_ipc_payload(payload_str) {
+            match result {
+                Ok(ipc) => {
+                    let state = app_handle.state::<AppState>();
+                    rendered_service.handle(&app_handle, &state, ipc);
+                }
+                Err(parse_error) => {
+                    error!("[IPC] Failed to parse rendered message: {} — payload: {}", parse_error, payload_str);
+                }
             }
         }
     });
@@ -31,13 +33,15 @@ pub fn setup(app: &App) {
     let app_handle = app.handle().clone();
     app.listen(config::BACKGROUND_IPC_MESSAGE, move |event| {
         let payload_str = event.payload();
-        match parse_ipc_payload(payload_str) {
-            Ok(ipc) => {
-                let state = app_handle.state::<AppState>();
-                background_service.handle(&app_handle, &state, ipc);
-            }
-            Err(e) => {
-                error!("[IPC] Failed to parse background message: {} — payload: {}", e, payload_str);
+        if let Some(result) = parse_ipc_payload(payload_str) {
+            match result {
+                Ok(ipc) => {
+                    let state = app_handle.state::<AppState>();
+                    background_service.handle(&app_handle, &state, ipc);
+                }
+                Err(parse_error) => {
+                    error!("[IPC] Failed to parse background message: {} — payload: {}", parse_error, payload_str);
+                }
             }
         }
     });
@@ -46,6 +50,11 @@ pub fn setup(app: &App) {
 }
 
 /// Parse a raw JSON string into an IpcMessage.
-pub fn parse_ipc_payload(payload: &str) -> Result<IpcMessage, serde_json::Error> {
-    serde_json::from_str::<IpcMessage>(payload)
+/// Returns `None` for null/empty payloads (JS emits without data), `Some(Result)` otherwise.
+pub fn parse_ipc_payload(payload: &str) -> Option<Result<IpcMessage, serde_json::Error>> {
+    let trimmed = payload.trim();
+    if trimmed.is_empty() || trimmed == "null" {
+        return None;
+    }
+    Some(serde_json::from_str::<IpcMessage>(trimmed))
 }

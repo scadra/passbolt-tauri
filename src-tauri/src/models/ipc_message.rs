@@ -52,3 +52,16 @@ impl IpcMessage {
         }
     }
 }
+
+/// Unwrap the IPCHandler.request array convention.
+///
+/// JS `IPCHandler.request()` wraps payloads in a single-element array.
+/// If the value is a single-element array, returns the first element.
+/// Otherwise returns the value unchanged.
+pub fn unwrap_ipc_array(value: &serde_json::Value) -> &serde_json::Value {
+    if let Some(array) = value.as_array() {
+        array.first().unwrap_or(value)
+    } else {
+        value
+    }
+}

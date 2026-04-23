@@ -19,16 +19,19 @@ pub struct KeyringService {
     service_name: String,
 }
 
+impl Default for KeyringService {
+    fn default() -> Self {
+        Self {
+            service_name: "com.passbolt.desktop".to_string(),
+        }
+    }
+}
+
 impl KeyringService {
     pub fn new(service_name: &str) -> Self {
         Self {
             service_name: service_name.to_string(),
         }
-    }
-
-    /// Default service name for production.
-    pub fn default() -> Self {
-        Self::new("com.passbolt.desktop")
     }
 
     // ── Account existence ───────────────────────────────────────

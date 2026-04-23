@@ -13,6 +13,7 @@
  */
 
 import "./src/polyfill/browserPolyfill";
+import "./src/polyfill/browserSecurityPolyfill";
 import IPCHandler from "./src/shared/IPCHandler";
 import React from "react";
 import ReactDOM from "react-dom";

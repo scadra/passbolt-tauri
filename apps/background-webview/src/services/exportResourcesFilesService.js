@@ -68,7 +68,7 @@ class ExportResourcesFileService {
 
     const blobFile = new Blob([exportEntity.file], {type: mimeType});
     const content = await FileService.blobToDataURL(blobFile);
-    await emit(DOWNLOAD_FILE, {content, filename});
+    await this.worker.port.emit(DOWNLOAD_FILE, {content, filename});
   }
 }
 

@@ -46,9 +46,13 @@
     }
 
     async getStorage(key) {
-      const value = localStorage.getItem(key);
+      // _passbolt_data is stored in sessionStorage (survives navigation).
+      // Other keys may be in renderedStore (Map in IPCHandler) but Stylesheet
+      // runs before React mounts, so sessionStorage is the only safe source.
+      const actualKey = Array.isArray(key) ? key[0] : key;
+      const value = sessionStorage.getItem(actualKey);
       return {
-        [key]: JSON.parse(value)
+        [actualKey]: value ? JSON.parse(value) : null
       };
     }
 

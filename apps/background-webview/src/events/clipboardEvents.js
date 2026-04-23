@@ -16,8 +16,10 @@ import CopyToClipboardController from "passbolt-browser-extension/src/all/backgr
 
 const listen = function(worker) {
   worker.port.on('passbolt.clipboard.copy', async(requestId, text) => {
+    console.log('[CLIPBOARD] clipboardEvents received passbolt.clipboard.copy, requestId:', requestId, 'text length:', text?.length);
     const clipboardController = new CopyToClipboardController(worker, requestId);
     await clipboardController._exec(text);
+    console.log('[CLIPBOARD] clipboardEvents _exec done');
   });
 
   worker.port.on('passbolt.clipboard.copy-temporarily', async(requestId, text) => {

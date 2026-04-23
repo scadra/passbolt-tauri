@@ -25,6 +25,7 @@ const version = packageJson.version;
 window.chrome.runtime = {
   id: {},
   lastError: null,
-  getManifest: () => ({version})
+  getManifest: () => ({version}),
+  getURL: () => ""
 };
 

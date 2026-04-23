@@ -9,6 +9,8 @@
 
 use serde_json::Value;
 
+use crate::models::rbac_entry::RbacEntry;
+
 /// Features forced to Deny on the desktop app.
 const DESKTOP_DENY_ACTIONS: &[&str] = &[
     "Administration.viewWorkspace",
@@ -22,41 +24,30 @@ const DESKTOP_DENY_ACTIONS: &[&str] = &[
 /// Inject desktop Deny rules into an RBAC response message.
 pub fn inject_desktop_denies(message: &mut Option<Value>) {
     if let Some(ref mut value) = message {
-        if let Some(arr) = value.as_array_mut() {
+        if let Some(rbacs) = value.as_array_mut() {
             for action_name in DESKTOP_DENY_ACTIONS {
-                add_or_update(arr, action_name, "Deny");
+                add_or_update(rbacs, action_name, "Deny");
             }
         }
     }
 }
 
 /// Add or update an RBAC entry. If the ui_action already exists, overwrite
-/// its control_function. Otherwise create a new entry.
+/// its control_function. Otherwise create a new entry using `RbacEntry`.
 fn add_or_update(rbacs: &mut Vec<Value>, ui_action_name: &str, control: &str) {
-    let existing = rbacs.iter_mut().find(|r| {
-        r.get("ui_action")
-            .and_then(|a| a.get("name"))
-            .and_then(|n| n.as_str())
+    let existing = rbacs.iter_mut().find(|entry| {
+        entry.get("ui_action")
+            .and_then(|action| action.get("name"))
+            .and_then(|name| name.as_str())
             == Some(ui_action_name)
     });
 
     if let Some(entry) = existing {
         entry["control_function"] = Value::String(control.to_string());
     } else {
-        rbacs.push(serde_json::json!({
-            "id": uuid::Uuid::new_v4().to_string(),
-            "foreign_id": uuid::Uuid::new_v4().to_string(),
-            "role_id": uuid::Uuid::new_v4().to_string(),
-            "control_function": control,
-            "foreign_model": "UiAction",
-            "action": {
-                "id": uuid::Uuid::new_v4().to_string(),
-                "name": ui_action_name
-            },
-            "ui_action": {
-                "id": uuid::Uuid::new_v4().to_string(),
-                "name": ui_action_name
-            }
-        }));
+        let new_entry = RbacEntry::new(ui_action_name, control);
+        if let Ok(serialized) = serde_json::to_value(new_entry) {
+            rbacs.push(serialized);
+        }
     }
 }

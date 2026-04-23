@@ -83,7 +83,12 @@ export default class MainWorkspace {
     KeepSessionAliveService.start();
     browser.alarms.onAlarm.removeListener(GlobalAlarmService.exec);
     browser.alarms.onAlarm.addListener(GlobalAlarmService.exec);
-    navigator.clipboard.writeText = async data => await this.worker.port.emit(CLIPBOARD_SET_TEXT, data);
+    navigator.clipboard.writeText = async data => {
+      console.log('[CLIPBOARD] writeText called with data length:', data?.length, 'CLIPBOARD_SET_TEXT:', CLIPBOARD_SET_TEXT);
+      await this.worker.port.emit(CLIPBOARD_SET_TEXT, data);
+      console.log('[CLIPBOARD] emit done');
+    };
+    console.log('[CLIPBOARD] navigator.clipboard.writeText overridden, navigator.clipboard:', navigator.clipboard);
   }
 
   /**

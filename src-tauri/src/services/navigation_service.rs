@@ -11,11 +11,58 @@
 
 use log::info;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_opener::OpenerExt;
 
 use crate::config;
 use crate::services::mfa_service;
+use crate::services::topics::handlers;
 use crate::services::webview_service;
-use crate::state::AppState;
+use crate::state::{AppMode, AppState};
+
+/// URL prefixes allowed to open in the system browser (prefix match).
+/// Equivalent of C# `RenderedNavigationService.CanOpenBrowser()` whitelist.
+const ALLOWED_EXTERNAL_PREFIXES: &[&str] = &[
+    "https://help.passbolt.com/",
+    "https://www.passbolt.com/",
+];
+
+/// URLs allowed to open in the system browser (exact match).
+const ALLOWED_EXTERNAL_EXACT: &[&str] = &[
+    "https://en.wikipedia.org/wiki/Phishing",
+];
+
+// ── Webview Navigation ────────────────────────────────────────
+
+/// Navigate both webviews to the given mode.
+///
+/// Resets navigation state, sets the new mode, builds mode-specific URLs,
+/// and navigates both webviews. Used by reload, redirect-to-auth, etc.
+pub fn navigate_both_webviews(app: &AppHandle, state: &AppState, mode: AppMode) {
+    state.reset_for_navigation();
+    state.navigation.set_mode(mode.clone());
+    let background_url = webview_service::build_webview_url(
+        "background-webview",
+        &state.navigation.get_background_uuid(),
+        &mode,
+    );
+    let rendered_url = webview_service::build_webview_url(
+        "rendered-webview",
+        &state.navigation.get_rendered_uuid(),
+        &mode,
+    );
+    handlers::navigate_webview(app, config::BACKGROUND_WEBVIEW_LABEL, &background_url);
+    handlers::navigate_webview(app, config::RENDERED_WEBVIEW_LABEL, &rendered_url);
+}
+
+/// Navigate both webviews to the current mode (reload).
+///
+/// Same as `navigate_both_webviews` but reads the current mode from state
+/// instead of receiving it as a parameter.
+pub fn navigate_to_current_mode(app: &AppHandle, state: &AppState) {
+    let mode = state.navigation.get_mode();
+    info!("[NavigationService] Navigating both webviews to {:?}", mode);
+    navigate_both_webviews(app, state, mode);
+}
 
 // ── Rendered WebView ───────────────────────────────────────────
 
@@ -44,27 +91,15 @@ pub fn rendered_navigation_starting(app: &AppHandle, url: &tauri::Url) -> bool {
         // (equivalent of: if args.Uri.EndsWith("/auth/login") → LOG_OUT)
         if url.path().ends_with("/auth/login") {
             info!("[NavigationService] Session expired — triggering logout");
-            super::topics::background_handlers::handle_logout(app, &state);
+            crate::services::auth_service::logout(app, &state);
         }
         return false;
     }
 
-    // MFA completion check (equivalent of HasMfaCompleted + DisallowMfaUrls + RedirectToWorkspace)
-    if state.navigation.is_mfa_active() {
-        if let Some(domain) = state.navigation.get_trusted_domain() {
-            if mfa_service::is_mfa_url(&url_str, &domain)
-                && mfa_service::has_mfa_completed(&url_str, &domain)
-            {
-                info!("[NavigationService] MFA completed — redirecting to workspace");
-                let app_clone = app.clone();
-                tauri::async_runtime::spawn(async move {
-                    handle_mfa_completed(&app_clone);
-                });
-                return false; // Cancel navigation (args.Cancel = true)
-            }
-        }
-    }
-
+    // During MFA, the terminal redirect ({domain}/) is ALLOWED through.
+    // MFA completion is detected in on_page_load(Finished) instead of here,
+    // because triggering workspace navigation from on_navigation prevents
+    // the Background webview JS from executing (Tauri/WKWebView limitation).
     true
 }
 
@@ -82,36 +117,77 @@ fn allow_rendered_navigation(url: &str, state: &AppState) -> bool {
     false
 }
 
-/// Post-MFA completion handler.
-/// Equivalent of `DisallowMfaUrls()` + cookie extraction + `RedirectToWorkspace()`.
-fn handle_mfa_completed(app: &AppHandle) {
+/// Post-MFA completion handler, called from `on_page_load(Finished)` in
+/// `webview_service.rs` when the Rendered webview finishes loading the
+/// terminal redirect URL (`{domain}/`).
+///
+/// Called from the same execution context as on_page_load (main thread),
+/// which is the same context as the normal login flow. This avoids the
+/// WKWebView limitation where navigating from on_navigation's async
+/// dispatch prevents subsequent JS execution.
+///
+/// Equivalent of C# `DisallowMfaUrls()` + cookie extraction + `RedirectToWorkspace()`.
+pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
     let state = app.state::<AppState>();
 
     // Extract cookies from WKWebView → CookieState
-    // (sync WKWebView's cookies back to reqwest's cookie store)
     if let Some(webview) = app.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
         if let Some(domain) = state.navigation.get_trusted_domain() {
-            if let Ok(url) = domain.parse::<tauri::Url>() {
-                match webview.cookies_for_url(url) {
-                    Ok(cookies) => {
-                        for cookie in &cookies {
-                            state.cookies.set_cookie(cookie.name(), cookie.value());
-                        }
-                        info!("[NavigationService] Extracted {} cookies from WKWebView", cookies.len());
-                    }
-                    Err(error) => {
-                        log::warn!("[NavigationService] Failed to extract cookies: {}", error);
-                    }
-                }
-            }
+            crate::services::cookie_service::extract_cookies_from_webview(
+                &webview,
+                &state.cookies,
+                &domain,
+            );
         }
     }
 
     // DisallowMfaUrls equivalent
     state.navigation.set_mfa_active(false);
 
-    // RedirectToWorkspace (passphrase already cached from handle_require_mfa)
-    super::topics::background_handlers::handle_redirect_to_workspace(app, &state);
+    // RedirectToWorkspace (passphrase already cached from require_mfa)
+    crate::services::auth_service::redirect_to_workspace(app, &state);
+}
+
+// ── New Window Requests ────────────────────────────────────────
+
+/// Handle a new window request from the Rendered webview.
+/// Opens whitelisted URLs in the system browser, blocks everything else.
+///
+/// Equivalent of C# `MainController.NewWindowRequested()` +
+/// `RenderedNavigationService.CanOpenBrowser()`.
+pub fn handle_new_window_requested(app: &AppHandle, url: &str) {
+    if cfg!(debug_assertions) {
+        eprintln!("[NavigationService] handle_new_window_requested: url={}", url);
+    }
+
+    let is_allowed = ALLOWED_EXTERNAL_PREFIXES.iter().any(|prefix| url.starts_with(prefix))
+        || ALLOWED_EXTERNAL_EXACT.contains(&url);
+
+    if cfg!(debug_assertions) {
+        eprintln!("[NavigationService] is_allowed={} for url={}", is_allowed, url);
+    }
+
+    if is_allowed {
+        info!("[NavigationService] Opening whitelisted URL in browser: {}", url);
+        match app.opener().open_url(url, None::<&str>) {
+            Ok(_) => {
+                if cfg!(debug_assertions) {
+                    eprintln!("[NavigationService] opener.open_url succeeded for {}", url);
+                }
+            }
+            Err(error) => {
+                log::error!("[NavigationService] Failed to open URL: {}", error);
+                if cfg!(debug_assertions) {
+                    eprintln!("[NavigationService] opener.open_url FAILED: {} — url={}", error, url);
+                }
+            }
+        }
+    } else {
+        info!("[NavigationService] Blocked new window request: {}", url);
+        if cfg!(debug_assertions) {
+            eprintln!("[NavigationService] BLOCKED (not whitelisted): {}", url);
+        }
+    }
 }
 
 // ── Background WebView ─────────────────────────────────────────
@@ -125,12 +201,13 @@ fn handle_mfa_completed(app: &AppHandle) {
 pub fn background_navigation_starting(app: &AppHandle, url: &tauri::Url) -> bool {
     let state = app.state::<AppState>();
     let background_origin = webview_service::build_origin(&state.navigation.get_background_uuid());
+    let url_str = url.to_string();
 
-    if url.to_string().starts_with(&background_origin) {
+    if url_str.starts_with(&background_origin) {
+        info!("[NavigationService] Background allowed: {}", url_str);
         return true;
     }
 
-    log::warn!("[NavigationService] Background blocked: {}", url);
+    log::warn!("[NavigationService] Background blocked: {} (expected origin: {})", url_str, background_origin);
     false
 }
-

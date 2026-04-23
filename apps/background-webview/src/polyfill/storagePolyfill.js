@@ -1,12 +1,12 @@
 /**
  * Passbolt ~ Open source password manager for teams
- * Copyright (c) 2023 Passbolt SA (https://www.passbolt.com)
+ * Copyright (c) Passbolt SA (https://www.passbolt.com)
  *
  * Licensed under GNU Affero General Public License version 3 of the or any later version.
  * For full copyright and license information, please see the LICENSE.txt
  * Redistributions of files must retain the above copyright notice.
  *
- * @copyright     Copyright (c) 2023 Passbolt SA (https://www.passbolt.com)
+ * @copyright     Copyright (c) Passbolt SA (https://www.passbolt.com)
  * @license       https://opensource.org/licenses/AGPL-3.0 AGPL License
  * @link          https://www.passbolt.com Passbolt(tm)
  * @since         0.0.1
@@ -16,13 +16,18 @@ import {LOCALSTORAGE_CLEAR, LOCALSTORAGE_DELETE, LOCALSTORAGE_UPDATE} from "../e
 import { emit } from '@tauri-apps/api/event';
 
 /**
- * Polyfill to match the webview storage with the bext storage.
+ * In-memory storage (Map) with sessionStorage fallback for _passbolt_data.
  *
- * localStorage writes are batched: multiple rapid `set()` calls are
- * accumulated and flushed as individual IPC messages after a microtick.
- * This prevents saturating the macOS main thread with protocol handler
- * callbacks when the passbolt-browser-extension writes ~16 keys at init.
+ * memoryStore handles all keys — no size limit (resources ~15MB OK).
+ * _passbolt_data is ALSO written to sessionStorage so it survives the
+ * auth → workspace page navigation (the only key that needs to persist).
+ *
+ * Data is synced to the Rendered webview via IPC (LOCALSTORAGE_UPDATE).
+ *
+ * Writes are batched: multiple rapid `set()` calls are accumulated and
+ * flushed as individual IPC messages after a 50ms debounce.
  */
+const memoryStore = new Map();
 class StoragePolyfill {
   constructor() {
     this._pendingUpdates = [];
@@ -41,19 +46,32 @@ class StoragePolyfill {
           if (typeof storage === "object") {
             const keys = Object.keys(storage);
             const values = Object.values(storage);
-            localStorage.setItem(keys[0], JSON.stringify(values[0]));
-            this._queueUpdate(keys[0], JSON.stringify(values[0]));
+            const key = keys[0];
+            const serialized = JSON.stringify(values[0]);
+            memoryStore.set(key, serialized);
+            // _passbolt_data must survive auth → workspace navigation
+            if (key === '_passbolt_data') {
+              try { sessionStorage.setItem(key, serialized); } catch {}
+            }
+            this._queueUpdate(key, serialized);
           } else {
-            localStorage.setItem(storage, value);
+            memoryStore.set(storage, value);
+            if (storage === '_passbolt_data') {
+              try { sessionStorage.setItem(storage, value); } catch {}
+            }
             this._queueUpdate(storage, value);
           }
         },
         remove: key => {
-          localStorage.removeItem(key);
+          memoryStore.delete(key);
+          if (key === '_passbolt_data') {
+            sessionStorage.removeItem(key);
+          }
           this.onStorageDelete(key);
         },
         clear: () => {
-          localStorage.clear();
+          memoryStore.clear();
+          sessionStorage.clear();
           this.onStorageCleared();
         }
       }
@@ -107,7 +125,8 @@ class StoragePolyfill {
         if (Array.isArray(key)) {
           localKey = key[0];
         }
-        const value = localStorage.getItem(localKey);
+        // memoryStore first, sessionStorage fallback for _passbolt_data after navigation
+        const value = memoryStore.get(localKey) ?? sessionStorage.getItem(localKey) ?? null;
         const response = value !== null ? value : undefined;
         if (callback) {
           callback({_passbolt_data: response ? JSON.parse(response) : undefined});

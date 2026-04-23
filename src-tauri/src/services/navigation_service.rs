@@ -131,42 +131,66 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
     let state = app.state::<AppState>();
     eprintln!("[MFA_DEBUG] handle_mfa_completed_from_page_load — start");
 
-    // Extract cookies from webview → CookieState.
-    // The MFA verification cookie (passbolt_mfa) is set by the server directly
-    // in the Rendered webview's browser cookie store during MFA submission.
-    // We must extract it here so subsequent API calls include it.
-    if let Some(webview) = app.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
-        if let Some(domain) = state.navigation.get_trusted_domain() {
-            eprintln!("[MFA_DEBUG] extracting cookies from webview for domain={}", domain);
-            let count = crate::services::cookie_service::extract_cookies_from_webview(
-                &webview,
-                &state.cookies,
-                &domain,
-            );
-            eprintln!("[MFA_DEBUG] extracted {} cookies", count);
-        }
-    }
-
     // DisallowMfaUrls equivalent
     state.navigation.set_mfa_active(false);
-    eprintln!("[MFA_DEBUG] handle_mfa_completed_from_page_load — redirecting to workspace");
 
-    // RedirectToWorkspace — navigates Background to workspace.
-    // Then also navigate Rendered (which is stuck on the external MFA page
-    // and can't receive IPC messages to trigger its own transition).
-    crate::services::auth_service::redirect_to_workspace(app, &state);
+    // --- macOS: sync cookie extraction + redirect (original flow, untouched) ---
+    #[cfg(not(target_os = "windows"))]
+    {
+        if let Some(webview) = app.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
+            if let Some(domain) = state.navigation.get_trusted_domain() {
+                crate::services::cookie_service::extract_cookies_from_webview(
+                    &webview,
+                    &state.cookies,
+                    &domain,
+                );
+            }
+        }
+        crate::services::auth_service::redirect_to_workspace(app, &state);
+    }
 
-    let rendered_url = crate::services::webview_service::build_webview_url(
-        "rendered-webview",
-        &state.navigation.get_rendered_uuid(),
-        &crate::state::AppMode::Workspace,
-    );
-    crate::services::topics::handlers::navigate_webview(
-        app,
-        config::RENDERED_WEBVIEW_LABEL,
-        &rendered_url,
-    );
-    eprintln!("[MFA_DEBUG] handle_mfa_completed_from_page_load — done");
+    // --- Windows: async cookie extraction (cookies_for_url deadlocks on main thread) ---
+    // Then navigate BOTH webviews (Rendered is stuck on the external MFA page).
+    #[cfg(target_os = "windows")]
+    {
+        let app_handle = app.clone();
+        let cookie_state = state.cookies.clone();
+        let trusted_domain = state.navigation.get_trusted_domain();
+        let rendered_uuid = state.navigation.get_rendered_uuid();
+        let background_uuid = state.navigation.get_background_uuid();
+
+        // Prepare workspace state synchronously before spawning
+        state.reset_for_navigation();
+        state.navigation.set_mode(crate::state::AppMode::Workspace);
+
+        tauri::async_runtime::spawn(async move {
+            if let Some(webview) = app_handle.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
+                if let Some(domain) = &trusted_domain {
+                    let count = crate::services::cookie_service::extract_cookies_from_webview(
+                        &webview,
+                        &cookie_state,
+                        domain,
+                    );
+                    eprintln!("[MFA] Extracted {} cookies from webview", count);
+                }
+            }
+
+            let background_url = crate::services::webview_service::build_webview_url(
+                "background-webview", &background_uuid, &crate::state::AppMode::Workspace,
+            );
+            crate::services::topics::handlers::navigate_webview(
+                &app_handle, config::BACKGROUND_WEBVIEW_LABEL, &background_url,
+            );
+
+            let rendered_url = crate::services::webview_service::build_webview_url(
+                "rendered-webview", &rendered_uuid, &crate::state::AppMode::Workspace,
+            );
+            crate::services::topics::handlers::navigate_webview(
+                &app_handle, config::RENDERED_WEBVIEW_LABEL, &rendered_url,
+            );
+            eprintln!("[MFA] Workspace navigation dispatched");
+        });
+    }
 }
 
 // ── New Window Requests ────────────────────────────────────────

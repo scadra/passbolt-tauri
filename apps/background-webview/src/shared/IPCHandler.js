@@ -161,7 +161,6 @@ class IPCHandler {
       await window.chrome?.storage?.local?._flush?.();
     }
 
-    console.log('[IPC-Background] Emitting: background-ipc-message, topic:', ipc.topic);
     await tauriEmit('background-ipc-message', ipc);
   }
 

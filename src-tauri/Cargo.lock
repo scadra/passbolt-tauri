@@ -2994,6 +2994,7 @@ dependencies = [
  "thiserror 2.0.12",
  "url",
  "uuid",
+ "windows",
  "zeroize",
 ]
 

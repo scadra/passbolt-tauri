@@ -141,13 +141,16 @@ impl KeyringService {
         self.save_account_secret(&secret)
     }
 
-    // ── Storage backend (OS keyring) ──────────────────────────────
+    // ── Storage backend ───────────────────────────────────────────
 
+    // macOS/Linux: keyring crate (Keychain / Secret Service)
+    #[cfg(not(target_os = "windows"))]
     fn read(&self, key: &str) -> Option<String> {
         let entry = keyring::Entry::new(&self.service_name, key).ok()?;
         entry.get_password().ok()
     }
 
+    #[cfg(not(target_os = "windows"))]
     fn write(&self, key: &str, value: &str) -> Result<(), AppError> {
         let entry = keyring::Entry::new(&self.service_name, key)
             .map_err(|error| AppError::CredentialError(format!("Keyring entry error: {}", error)))?;
@@ -155,6 +158,7 @@ impl KeyringService {
             .map_err(|error| AppError::CredentialError(format!("Keyring write error: {}", error)))
     }
 
+    #[cfg(not(target_os = "windows"))]
     fn delete(&self, key: &str) -> Result<(), AppError> {
         let entry = keyring::Entry::new(&self.service_name, key)
             .map_err(|error| AppError::CredentialError(format!("Keyring entry error: {}", error)))?;
@@ -162,6 +166,62 @@ impl KeyringService {
             Ok(_) => Ok(()),
             Err(keyring::Error::NoEntry) => Ok(()),
             Err(error) => Err(AppError::CredentialError(format!("Keyring delete error: {}", error))),
+        }
+    }
+
+    // Windows: PasswordVault (WinRT) — no size limit on password field,
+    // unlike Win32 CredWrite which caps at 2560 bytes. Required for storing
+    // armored PGP keys. Compatible with MSIX deployment.
+    #[cfg(target_os = "windows")]
+    fn read(&self, key: &str) -> Option<String> {
+        use windows::core::HSTRING;
+        use windows::Security::Credentials::PasswordVault;
+
+        let vault = PasswordVault::new().ok()?;
+        let resource = HSTRING::from(&self.service_name);
+        let username = HSTRING::from(key);
+        let credential = vault.Retrieve(&resource, &username).ok()?;
+        credential.RetrievePassword().ok()?;
+        credential.Password().ok().map(|password| password.to_string())
+    }
+
+    #[cfg(target_os = "windows")]
+    fn write(&self, key: &str, value: &str) -> Result<(), AppError> {
+        use windows::core::HSTRING;
+        use windows::Security::Credentials::{PasswordCredential, PasswordVault};
+
+        let vault = PasswordVault::new()
+            .map_err(|error| AppError::CredentialError(format!("PasswordVault init error: {}", error)))?;
+
+        // Remove existing credential if present (PasswordVault doesn't overwrite)
+        let _ = self.delete(key);
+
+        let credential = PasswordCredential::CreatePasswordCredential(
+            &HSTRING::from(&self.service_name),
+            &HSTRING::from(key),
+            &HSTRING::from(value),
+        )
+        .map_err(|error| AppError::CredentialError(format!("PasswordVault credential error: {}", error)))?;
+
+        vault.Add(&credential)
+            .map_err(|error| AppError::CredentialError(format!("PasswordVault write error: {}", error)))
+    }
+
+    #[cfg(target_os = "windows")]
+    fn delete(&self, key: &str) -> Result<(), AppError> {
+        use windows::core::HSTRING;
+        use windows::Security::Credentials::PasswordVault;
+
+        let vault = PasswordVault::new()
+            .map_err(|error| AppError::CredentialError(format!("PasswordVault init error: {}", error)))?;
+
+        let resource = HSTRING::from(&self.service_name);
+        let username = HSTRING::from(key);
+
+        match vault.Retrieve(&resource, &username) {
+            Ok(credential) => vault.Remove(&credential)
+                .map_err(|error| AppError::CredentialError(format!("PasswordVault delete error: {}", error))),
+            Err(_) => Ok(()), // Not found = already deleted
         }
     }
 }

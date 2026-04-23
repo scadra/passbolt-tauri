@@ -41,7 +41,7 @@ pub fn resolve_asset(asset_path: &str) -> FetchResponse {
                 (base64::engine::general_purpose::STANDARD.encode(&file.data), "base64")
             };
 
-            FetchResponse::ok_with_encoding(body, &mime, encoding)
+            FetchResponse::ok_with_encoding(body, mime, encoding)
         }
         None => {
             debug!("[AssetService] 404: {}", asset_path);

@@ -2,7 +2,7 @@ use log::{info, error, debug};
 use tauri::Manager;
 
 use passbolt::config;
-use passbolt::services::{ipc_listener_service, webview_service};
+use passbolt::services::webview_service;
 use passbolt::services::protocol_service::ProtocolService;
 use passbolt::state::{AppMode, AppState};
 
@@ -43,8 +43,8 @@ fn main() {
             debug!("[Setup] Determining initial mode...");
             let mode = determine_initial_mode(app);
 
-            debug!("[Setup] Setting up IPC listeners...");
-            ipc_listener_service::setup(app);
+            // IPC listeners are registered per-webview in webview_service::create_webviews()
+            // using webview.listen() for source filtering (prevents cross-webview impersonation).
 
             debug!("[Setup] Creating webviews...");
             let state = app.state::<AppState>();

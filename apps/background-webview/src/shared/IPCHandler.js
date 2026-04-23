@@ -44,7 +44,30 @@ class IPCHandler {
       this._onMessage(event);
     });
     this._globalUnlisten = unlisten;
+
+    // Clean up the Tauri event listener on page unload (mode transitions).
+    // Without this, the old listener leaks when the page reloads for
+    // import→auth→workspace transitions, causing duplicate handlers.
+    window.addEventListener('beforeunload', () => {
+      this.destroy();
+    });
+
     await tauriEmit('background-ipc-message', {topic: 'passbolt.background.listener-ready'});
+  }
+
+  /**
+   * Release all Tauri event listeners and clear internal state.
+   * Called automatically on page unload to prevent stale listener accumulation.
+   */
+  destroy() {
+    if (this._globalUnlisten) {
+      this._globalUnlisten();
+      this._globalUnlisten = null;
+    }
+    this._listeners = {};
+    this._eventListeners.clear();
+    this._pendingRequestIds.clear();
+    this._requestQueue = [];
   }
 
   _onMessage(event) {
@@ -129,6 +152,13 @@ class IPCHandler {
       };
     } else {
       ipc = requestArgs[0];
+    }
+
+    // Flush pending storage updates before sending responses.
+    // The storage polyfill debounces writes (50ms), but the response must
+    // arrive AFTER the storage sync so Rendered has up-to-date data.
+    if (ipc.status) {
+      await window.chrome?.storage?.local?._flush?.();
     }
 
     await tauriEmit('background-ipc-message', ipc);

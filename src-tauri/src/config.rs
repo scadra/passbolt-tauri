@@ -39,5 +39,49 @@ pub const BACKGROUND_AFTER_LOGOUT: &str = "passbolt.auth.after-logout";
 pub const RENDERED_RELOAD: &str = "passbolt.tab.reload";
 pub const BACKGROUND_CLIPBOARD_SET_TEXT: &str = "passbolt.background.clipboard-set-text";
 
-/// IPC connect-src directives for Tauri event system (emit/listen).
-pub const IPC_CONNECT_SRC: &str = "ipc://localhost/plugin:event|listen ipc://localhost/plugin:event|emit";
+// ── Browser-facing URL helpers ──────────────────────────────────
+//
+// On Windows, WebView2 maps custom protocol schemes to HTTP:
+//   passbolt://host/path  →  http://passbolt.host/path
+//   ipc://localhost/cmd   →  http://ipc.localhost/cmd
+//   isolation-x://localhost → http://isolation-x.localhost
+//
+// These helpers generate URLs as the **browser** sees them, used for
+// CSP directives and HTML content (script src, etc.).
+// The Rust protocol handler is NOT affected (Tauri normalises back).
+
+/// Build a URL in the format the browser will see on the current platform.
+///
+/// macOS (WKWebView):  `{scheme}://{host}{path}`
+/// Windows (WebView2): `http://{scheme}.{host}{path}`
+pub fn browser_url(scheme: &str, host: &str, path: &str) -> String {
+    #[cfg(target_os = "windows")]
+    { format!("http://{}.{}{}", scheme, host, path) }
+
+    #[cfg(not(target_os = "windows"))]
+    { format!("{}://{}{}", scheme, host, path) }
+}
+
+/// Browser-visible origin for a webview: `passbolt://uuid.passbolt.local/` (macOS)
+/// or `http://passbolt.uuid.passbolt.local/` (Windows).
+pub fn browser_origin(uuid: &str) -> String {
+    browser_url(PROTOCOL_SCHEME, &format!("{}{}", uuid, DOMAIN_SUFFIX), "/")
+}
+
+/// IPC connect-src for CSP — platform-aware.
+pub fn ipc_connect_src() -> &'static str {
+    #[cfg(target_os = "windows")]
+    { "http://ipc.localhost/plugin:event|listen http://ipc.localhost/plugin:event|emit" }
+
+    #[cfg(not(target_os = "windows"))]
+    { "ipc://localhost/plugin:event|listen ipc://localhost/plugin:event|emit" }
+}
+
+/// `frame-src` value for the Tauri isolation iframe — platform-aware.
+pub fn isolation_frame_src(schema: &str) -> String {
+    #[cfg(target_os = "windows")]
+    { format!("http://{}.localhost", schema) }
+
+    #[cfg(not(target_os = "windows"))]
+    { format!("{}://localhost", schema) }
+}

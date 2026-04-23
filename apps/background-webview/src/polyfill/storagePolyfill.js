@@ -73,7 +73,10 @@ class StoragePolyfill {
           memoryStore.clear();
           sessionStorage.clear();
           this.onStorageCleared();
-        }
+        },
+        // Flush pending debounced updates immediately. Called by IPCHandler
+        // before emitting responses so storage sync reaches Rendered first.
+        _flush: () => this._flush(),
       }
     };
   }

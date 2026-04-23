@@ -1,3 +1,4 @@
+use passbolt::config;
 use passbolt::services::local_folder_service::{self, IndexContext, WebviewTarget};
 use passbolt::state::AppMode;
 
@@ -71,20 +72,20 @@ fn generated_html_has_instance_uuid() {
     assert!(html.contains(TEST_UUID));
 }
 
-/// Bundle URLs must include the UUID-based origin.
+/// Bundle URLs must include the UUID-based origin (platform-aware format).
 #[test]
 fn bundle_src_uses_uuid_origin() {
     let html = local_folder_service::generate_index_html(&ctx(&WebviewTarget::Rendered, &AppMode::Auth, Some(TEST_DOMAIN), None));
-    assert!(html.contains(&format!("passbolt://{}.passbolt.local/", TEST_UUID)));
+    assert!(html.contains(&config::browser_origin(TEST_UUID)));
 }
 
 // ── Isolation frame-src ─────────────────────────────────────────
 
-/// With an isolation schema, the CSP must contain `frame-src {schema}://localhost`.
+/// With an isolation schema, the CSP must contain the platform-appropriate `frame-src`.
 #[test]
 fn csp_has_isolation_frame_src_when_provided() {
     let csp = local_folder_service::generate_csp(&ctx(&WebviewTarget::Rendered, &AppMode::Import, None, Some(TEST_ISOLATION)));
-    assert!(csp.contains(&format!("frame-src {}://localhost", TEST_ISOLATION)));
+    assert!(csp.contains(&format!("frame-src {}", config::isolation_frame_src(TEST_ISOLATION))));
 }
 
 /// Without an isolation schema, no `frame-src` directive.
@@ -96,19 +97,16 @@ fn csp_has_no_frame_src_without_isolation() {
 
 // ── IPC connect-src ─────────────────────────────────────────────
 
-/// All CSPs must contain IPC paths for Tauri event system.
+/// All CSPs must contain IPC paths for Tauri event system (platform-aware).
 #[test]
 fn all_csp_have_ipc_connect_src() {
+    let expected_ipc = config::ipc_connect_src();
     for target in [WebviewTarget::Rendered, WebviewTarget::Background] {
         for mode in [AppMode::Import, AppMode::Auth, AppMode::Workspace] {
             let csp = local_folder_service::generate_csp(&ctx(&target, &mode, Some(TEST_DOMAIN), None));
             assert!(
-                csp.contains("ipc://localhost/plugin:event|listen"),
-                "{:?}/{:?} CSP missing ipc listen: {}", target, mode, csp
-            );
-            assert!(
-                csp.contains("ipc://localhost/plugin:event|emit"),
-                "{:?}/{:?} CSP missing ipc emit: {}", target, mode, csp
+                csp.contains(expected_ipc),
+                "{:?}/{:?} CSP missing ipc connect-src: {}", target, mode, csp
             );
         }
     }
@@ -171,7 +169,12 @@ fn rendered_csp_has_form_action_none() {
 #[test]
 fn rendered_csp_has_script_src_with_uuid() {
     let csp = local_folder_service::generate_csp(&ctx(&WebviewTarget::Rendered, &AppMode::Import, None, None));
-    assert!(csp.contains(&format!("script-src passbolt://{}.passbolt.local/apps/rendered-webview/", TEST_UUID)));
+    let expected_base = config::browser_url(
+        config::PROTOCOL_SCHEME,
+        &format!("{}{}", TEST_UUID, config::DOMAIN_SUFFIX),
+        "/apps/rendered-webview/",
+    );
+    assert!(csp.contains(&format!("script-src {}", expected_base)));
 }
 
 #[test]
@@ -219,7 +222,12 @@ fn background_csp_has_default_src_none() {
 #[test]
 fn background_csp_has_script_src_with_uuid() {
     let csp = local_folder_service::generate_csp(&ctx(&WebviewTarget::Background, &AppMode::Import, None, None));
-    assert!(csp.contains(&format!("script-src passbolt://{}.passbolt.local/apps/background-webview/", TEST_UUID)));
+    let expected_base = config::browser_url(
+        config::PROTOCOL_SCHEME,
+        &format!("{}{}", TEST_UUID, config::DOMAIN_SUFFIX),
+        "/apps/background-webview/",
+    );
+    assert!(csp.contains(&format!("script-src {}", expected_base)));
 }
 
 #[test]

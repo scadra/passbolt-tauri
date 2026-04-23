@@ -134,10 +134,16 @@ impl ProtocolService {
                 trusted_domain,
                 isolation_schema: self.isolation_schema.as_deref(),
             };
+            // Generate CSP for both the HTTP header and the meta tag.
+            // The HTTP header is authoritative and applies before any DOM parsing,
+            // closing the timing window where scripts before the <meta> tag would
+            // execute without CSP protection.
+            let csp = local_folder_service::generate_csp(&ctx);
             let html = local_folder_service::generate_index_html(&ctx);
             return Response::builder()
                 .status(StatusCode::OK)
                 .header("Content-Type", "text/html; charset=utf-8")
+                .header("Content-Security-Policy", &csp)
                 .header("Cache-Control", "no-cache, no-store, must-revalidate")
                 .body(html.into_bytes())
                 .unwrap();

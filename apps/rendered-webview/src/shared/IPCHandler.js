@@ -37,6 +37,28 @@ class IPCHandler {
       this._onMessage(event);
     });
     this._globalUnlisten = unlisten;
+
+    // Clean up the Tauri event listener on page unload (mode transitions).
+    // Without this, the old listener leaks when the page reloads for
+    // import→auth→workspace transitions, causing duplicate handlers.
+    window.addEventListener('beforeunload', () => {
+      this.destroy();
+    });
+  }
+
+  /**
+   * Release all Tauri event listeners and clear internal state.
+   * Called automatically on page unload to prevent stale listener accumulation.
+   */
+  destroy() {
+    if (this._globalUnlisten) {
+      this._globalUnlisten();
+      this._globalUnlisten = null;
+    }
+    this._listeners = {};
+    this._eventListeners.clear();
+    this._pendingRequestIds.clear();
+    this._requestQueue = [];
   }
 
   _onMessage(event) {
@@ -105,10 +127,19 @@ class IPCHandler {
         if (key === '_passbolt_data') {
           try { sessionStorage.setItem(key, value); } catch {}
         }
+        // Notify WebviewStorage.onChanged listeners so React contexts re-render.
+        const storageEvent = new Event("storage");
+        storageEvent.key = key;
+        storageEvent.newValue = value;
+        window.dispatchEvent(storageEvent);
       }
     } else if (topic === 'passbolt.rendered.localstorage-delete' && eventData.message) {
       const key = typeof eventData.message === 'object' ? eventData.message.key : eventData.message;
       renderedStore.delete(key);
+      const storageEvent = new Event("storage");
+      storageEvent.key = key;
+      storageEvent.newValue = null;
+      window.dispatchEvent(storageEvent);
     } else if (topic === 'passbolt.rendered.localstorage-clear') {
       renderedStore.clear();
     }

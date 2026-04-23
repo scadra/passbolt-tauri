@@ -104,6 +104,11 @@ pub fn create_webviews(
         error!("[Webview] Failed to harden rendered webview: {}", error);
     }
 
+    // Register IPC listener scoped to this webview (source filtering).
+    // This ensures only events emitted by the Rendered webview's JS are processed
+    // by RenderedTopicService — equivalent of the C# canNavigate(webviewSender.Source) pattern.
+    super::ipc_listener_service::register_rendered_listener(&rendered_window);
+
     // Show after hardening (debug: also open devtools)
     #[cfg(debug_assertions)]
     rendered_window.open_devtools();
@@ -154,6 +159,11 @@ pub fn create_webviews(
         error!("[Webview] Failed to harden background webview: {}", error);
     }
 
+    // Register IPC listener scoped to this webview (source filtering).
+    // This ensures only events emitted by the Background webview's JS are processed
+    // by BackgroundTopicService — preventing cross-webview impersonation.
+    super::ipc_listener_service::register_background_listener(&background_window);
+
     #[cfg(debug_assertions)]
     background_window.open_devtools();
 
@@ -162,11 +172,15 @@ pub fn create_webviews(
     Ok(())
 }
 
-/// Build the origin prefix for a webview: `passbolt://{uuid}.passbolt.local/`.
+/// Build the browser-visible origin prefix for a webview.
+///
+/// macOS:   `passbolt://{uuid}.passbolt.local/`
+/// Windows: `http://passbolt.{uuid}.passbolt.local/`
+///
 /// Used by `navigation_service` to validate that a webview only navigates
 /// to URLs on its own origin.
 pub fn build_origin(uuid: &str) -> String {
-    format!("{}://{}{}/", config::PROTOCOL_SCHEME, uuid, config::DOMAIN_SUFFIX)
+    config::browser_origin(uuid)
 }
 
 /// Build the `passbolt://{uuid}.passbolt.local/apps/{webview}/index-{mode}.html` URL.

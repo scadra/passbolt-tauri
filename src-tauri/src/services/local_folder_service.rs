@@ -79,21 +79,25 @@ pub fn generate_csp(ctx: &IndexContext) -> String {
     }
 }
 
-/// Base URL for a webview's assets: `passbolt://{uuid}.passbolt.local/apps/{webview}/`
+/// Base URL for a webview's assets, in the format the browser sees.
+///
+/// macOS:   `passbolt://{uuid}.passbolt.local/apps/{webview}/`
+/// Windows: `http://passbolt.{uuid}.passbolt.local/apps/{webview}/`
 fn asset_base(webview_dir: &str, uuid: &str) -> String {
-    format!(
-        "{}://{}{}/apps/{}/",
+    config::browser_url(
         config::PROTOCOL_SCHEME,
-        uuid,
-        config::DOMAIN_SUFFIX,
-        webview_dir,
+        &format!("{}{}", uuid, config::DOMAIN_SUFFIX),
+        &format!("/apps/{}/", webview_dir),
     )
 }
 
-/// `frame-src {isolation_schema}://localhost` — allows Tauri's isolation iframe.
+/// `frame-src` directive for Tauri's isolation iframe — platform-aware.
+///
+/// macOS:   `frame-src isolation-xxx://localhost`
+/// Windows: `frame-src http://isolation-xxx.localhost`
 fn frame_src_directive(isolation_schema: Option<&str>) -> String {
     match isolation_schema {
-        Some(schema) => format!("frame-src {}://localhost", schema),
+        Some(schema) => format!("frame-src {}", config::isolation_frame_src(schema)),
         None => String::new(),
     }
 }
@@ -120,13 +124,13 @@ fn generate_rendered_csp(ctx: &IndexContext) -> String {
         }
     };
 
-    let origin = format!("{}://{}{}/", config::PROTOCOL_SCHEME, ctx.uuid, config::DOMAIN_SUFFIX);
+    let origin = config::browser_origin(ctx.uuid);
     let connect_src = match ctx.mode {
         AppMode::Import => {
-            format!("connect-src {}", config::IPC_CONNECT_SRC)
+            format!("connect-src {}", config::ipc_connect_src())
         }
         AppMode::Auth | AppMode::Workspace => {
-            format!("connect-src {} {origin}", config::IPC_CONNECT_SRC)
+            format!("connect-src {} {origin}", config::ipc_connect_src())
         }
     };
 
@@ -157,8 +161,8 @@ fn generate_background_csp(ctx: &IndexContext) -> String {
     // The browser-extension injects inline styles — safe here (headless worker, no visible UI)
     let style_src = "style-src 'unsafe-inline'".to_string();
 
-    let origin = format!("{}://{}{}/", config::PROTOCOL_SCHEME, ctx.uuid, config::DOMAIN_SUFFIX);
-    let connect_src = format!("connect-src {} {origin}", config::IPC_CONNECT_SRC);
+    let origin = config::browser_origin(ctx.uuid);
+    let connect_src = format!("connect-src {} {origin}", config::ipc_connect_src());
 
     let frame_src = frame_src_directive(ctx.isolation_schema);
 
@@ -175,7 +179,7 @@ fn generate_background_csp(ctx: &IndexContext) -> String {
     parts.join("; ")
 }
 
-/// Returns the `passbolt://` URL for the JS bundle.
+/// Returns the browser-visible URL for the JS bundle.
 fn get_bundle_src(target: &WebviewTarget, mode: &AppMode, uuid: &str) -> String {
     let (webview_dir, name) = match target {
         WebviewTarget::Rendered => ("rendered-webview", "rendered"),
@@ -186,14 +190,10 @@ fn get_bundle_src(target: &WebviewTarget, mode: &AppMode, uuid: &str) -> String 
         AppMode::Auth => "auth",
         AppMode::Workspace => "workspace",
     };
-    format!(
-        "{}://{}{}/apps/{}/dist/{}-{}.js",
+    config::browser_url(
         config::PROTOCOL_SCHEME,
-        uuid,
-        config::DOMAIN_SUFFIX,
-        webview_dir,
-        name,
-        mode_suffix,
+        &format!("{}{}", uuid, config::DOMAIN_SUFFIX),
+        &format!("/apps/{}/dist/{}-{}.js", webview_dir, name, mode_suffix),
     )
 }
 

@@ -144,19 +144,26 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
     let app_handle = app.clone();
     let cookie_state = state.cookies.clone();
     let trusted_domain = state.navigation.get_trusted_domain();
+    #[cfg(target_os = "windows")]
     let rendered_uuid = state.navigation.get_rendered_uuid();
 
     // Navigate Background to workspace (different webview, safe from on_page_load)
+    eprintln!("[MFA_PERF] redirect_to_workspace — start");
     crate::services::auth_service::redirect_to_workspace(app, &state);
+    eprintln!("[MFA_PERF] redirect_to_workspace — done");
 
     // Deferred: extract cookies + navigate Rendered (off main thread to avoid deadlock)
     tauri::async_runtime::spawn(async move {
+        eprintln!("[MFA_PERF] async spawn — started");
+
         // Extract MFA cookies from Rendered webview's browser cookie store
         if let Some(webview) = app_handle.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
             if let Some(domain) = &trusted_domain {
+                eprintln!("[MFA_PERF] cookies_for_url — start");
                 crate::services::cookie_service::extract_cookies_from_webview(
                     &webview, &cookie_state, domain,
                 );
+                eprintln!("[MFA_PERF] cookies_for_url — done");
             }
         }
 
@@ -164,6 +171,7 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
         // Navigate it to workspace explicitly.
         #[cfg(target_os = "windows")]
         {
+            eprintln!("[MFA_PERF] navigating Rendered to workspace");
             let rendered_url = crate::services::webview_service::build_webview_url(
                 "rendered-webview",
                 &rendered_uuid,

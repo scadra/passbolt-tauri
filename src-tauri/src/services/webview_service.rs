@@ -99,8 +99,9 @@ pub fn create_webviews(
                     if let Some(domain) = state.navigation.get_trusted_domain() {
                         let url_str = payload.url().to_string();
                         if crate::services::mfa_service::has_mfa_completed(&url_str, &domain) {
-                            log::info!("[PAGE] MFA terminal redirect detected — triggering workspace transition");
+                            eprintln!("[MFA_PERF] MFA completed detected — calling handle_mfa_completed");
                             super::navigation_service::handle_mfa_completed_from_page_load(&app_for_rv, &state);
+                            eprintln!("[MFA_PERF] handle_mfa_completed returned");
                         }
                     }
                 }

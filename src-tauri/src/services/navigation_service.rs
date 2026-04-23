@@ -136,54 +136,34 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
     // DisallowMfaUrls equivalent
     state.navigation.set_mfa_active(false);
 
-    // --- macOS: sync cookie extraction + redirect (original flow, untouched) ---
-    #[cfg(not(target_os = "windows"))]
-    {
-        if let Some(webview) = app.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
-            if let Some(domain) = state.navigation.get_trusted_domain() {
+    // Extract MFA cookies from the Rendered webview (which was on the API domain).
+    // Done async because cookies_for_url() deadlocks on the main thread on Windows.
+    let app_for_cookies = app.clone();
+    let cookie_state = state.cookies.clone();
+    let domain_for_cookies = state.navigation.get_trusted_domain();
+    tauri::async_runtime::spawn(async move {
+        if let Some(webview) = app_for_cookies.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
+            if let Some(domain) = &domain_for_cookies {
                 crate::services::cookie_service::extract_cookies_from_webview(
-                    &webview,
-                    &state.cookies,
-                    &domain,
+                    &webview, &cookie_state, domain,
                 );
             }
         }
-        crate::services::auth_service::redirect_to_workspace(app, &state);
-    }
+    });
 
-    // --- Windows: navigate immediately, extract cookies async ---
-    // cookies_for_url() deadlocks on the main thread (WebView2's GetCookies is
-    // async, Tauri wraps it synchronously). Navigate both webviews first (instant),
-    // then extract MFA cookies off the main thread.
-    #[cfg(target_os = "windows")]
-    {
-        // Navigate both webviews to workspace immediately
-        crate::services::auth_service::redirect_to_workspace(app, &state);
-        let trusted_domain = state.navigation.get_trusted_domain();
-        let rendered_url = crate::services::webview_service::build_webview_url(
-            "rendered-webview",
-            &state.navigation.get_rendered_uuid(),
-            &crate::state::AppMode::Workspace,
-            trusted_domain.as_deref(),
-        );
-        crate::services::topics::handlers::navigate_webview(
-            app, config::RENDERED_WEBVIEW_LABEL, &rendered_url,
-        );
-
-        // Extract MFA cookies off main thread
-        let app_handle = app.clone();
-        let cookie_state = state.cookies.clone();
-        let domain = state.navigation.get_trusted_domain();
-        tauri::async_runtime::spawn(async move {
-            if let Some(webview) = app_handle.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
-                if let Some(domain) = &domain {
-                    crate::services::cookie_service::extract_cookies_from_webview(
-                        &webview, &cookie_state, domain,
-                    );
-                }
-            }
-        });
-    }
+    // Navigate to workspace — Background first, then Rendered (which is stuck
+    // on the external MFA page and can't receive IPC messages).
+    crate::services::auth_service::redirect_to_workspace(app, &state);
+    let trusted_domain = state.navigation.get_trusted_domain();
+    let rendered_url = crate::services::webview_service::build_webview_url(
+        "rendered-webview",
+        &state.navigation.get_rendered_uuid(),
+        &crate::state::AppMode::Workspace,
+        trusted_domain.as_deref(),
+    );
+    crate::services::topics::handlers::navigate_webview(
+        app, config::RENDERED_WEBVIEW_LABEL, &rendered_url,
+    );
 }
 
 // ── New Window Requests ────────────────────────────────────────

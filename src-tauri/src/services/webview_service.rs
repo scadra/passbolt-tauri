@@ -95,15 +95,10 @@ pub fn create_webviews(
                 // HasMfaCompleted check, but triggered from on_page_load instead of
                 // on_navigation to ensure the workspace transition runs in the same
                 // execution context as the normal login flow.
-                let mfa_active = state.navigation.is_mfa_active();
-                let trusted_domain = state.navigation.get_trusted_domain();
-                let url_str = payload.url().to_string();
-                eprintln!("[MFA_DEBUG] on_page_load Finished: url={} mfa_active={} trusted_domain={:?}", url_str, mfa_active, trusted_domain);
-                if mfa_active {
-                    if let Some(domain) = trusted_domain {
-                        let completed = crate::services::mfa_service::has_mfa_completed(&url_str, &domain);
-                        eprintln!("[MFA_DEBUG] has_mfa_completed={} url={} domain={}", completed, url_str, domain);
-                        if completed {
+                if state.navigation.is_mfa_active() {
+                    if let Some(domain) = state.navigation.get_trusted_domain() {
+                        let url_str = payload.url().to_string();
+                        if crate::services::mfa_service::has_mfa_completed(&url_str, &domain) {
                             log::info!("[PAGE] MFA terminal redirect detected — triggering workspace transition");
                             super::navigation_service::handle_mfa_completed_from_page_load(&app_for_rv, &state);
                         }

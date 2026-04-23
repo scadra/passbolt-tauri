@@ -6,19 +6,12 @@
  * IPC event system to Rust, which makes the actual request via reqwest.
  *
  * Non-HTTPS URLs (passbolt://, data:, blob:, etc.) pass through to the original fetch.
+ * On Windows with useHttpsScheme, IPC URLs (ipc.localhost) also pass through.
  */
 import IPCHandler from '../shared/IPCHandler';
 
 const originalFetch = window.fetch.bind(window);
 
-// On Windows, the fetch polyfill is disabled — API calls go directly through the browser.
-// Cookies (session, MFA) are shared automatically because the webview domain matches the API.
-const fetchProxyDisabled = document.querySelector('meta[name="fetch-proxy"]')?.content === 'disabled';
-if (fetchProxyDisabled) {
-  console.log('[fetchPolyfill] Disabled — browser handles API calls directly');
-}
-
-if (!fetchProxyDisabled) {
 console.log('[fetchPolyfill] Installed — window.fetch replaced');
 
 window.fetch = async function(input, init = {}) {
@@ -28,11 +21,10 @@ window.fetch = async function(input, init = {}) {
   const method = init.method
     || (input instanceof Request ? input.method : 'GET');
 
-  console.log('[fetchPolyfill] fetch() called:', method, url.substring(0, 120));
-
-  // Only proxy HTTPS requests — everything else passes through
-  if (!url.startsWith('https://')) {
-    console.log('[fetchPolyfill] Non-HTTPS — passing through to original fetch');
+  // Only proxy HTTPS requests — everything else passes through.
+  // Also exclude ipc.localhost which is Tauri's internal IPC on Windows
+  // (with useHttpsScheme, IPC uses https://ipc.localhost/).
+  if (!url.startsWith('https://') || url.includes('ipc.localhost')) {
     return originalFetch(input, init);
   }
 
@@ -41,9 +33,9 @@ window.fetch = async function(input, init = {}) {
   const sourceHeaders = init.headers || (input instanceof Request ? input.headers : null);
   if (sourceHeaders) {
     if (sourceHeaders instanceof Headers) {
-      sourceHeaders.forEach((v, k) => { headers[k] = v; });
+      sourceHeaders.forEach((value, key) => { headers[key] = value; });
     } else if (Array.isArray(sourceHeaders)) {
-      sourceHeaders.forEach(([k, v]) => { headers[k] = v; });
+      sourceHeaders.forEach(([key, value]) => { headers[key] = value; });
     } else {
       Object.assign(headers, sourceHeaders);
     }
@@ -66,7 +58,6 @@ window.fetch = async function(input, init = {}) {
   } else if (body instanceof Blob) {
     body = await body.text();
   } else if (body !== null && typeof body !== 'string') {
-    // ReadableStream or unknown type — wrap in Response to read
     try { body = await new Response(body).text(); } catch { body = null; }
   }
 
@@ -89,4 +80,3 @@ window.fetch = async function(input, init = {}) {
     headers: new Headers(result.headers || {}),
   });
 };
-} // if (!fetchProxyDisabled)

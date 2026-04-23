@@ -53,7 +53,6 @@ pub fn generate_index_html(ctx: &IndexContext) -> String {
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="{csp}" />
     <meta name="instance-uuid" content="{uuid}" />
-    <meta name="fetch-proxy" content="{fetch_proxy}" />
     <style>#__tauri_isolation__ {{ display: none !important; }}</style>
     {stylesheet_tag}
 </head>
@@ -62,7 +61,6 @@ pub fn generate_index_html(ctx: &IndexContext) -> String {
 </body>
 </html>"#,
         uuid = ctx.uuid,
-        fetch_proxy = if cfg!(target_os = "windows") { "disabled" } else { "enabled" },
     )
 }
 
@@ -164,14 +162,6 @@ fn generate_background_csp(ctx: &IndexContext) -> String {
 
     let origin = config::browser_origin(ctx.uuid, ctx.trusted_domain);
 
-    // On Windows, the Background webview makes API calls directly through the browser
-    // (fetch polyfill disabled), so the trusted domain must be in connect-src.
-    #[cfg(target_os = "windows")]
-    let connect_src = {
-        let api_domain = format_trusted_domain(ctx.trusted_domain);
-        format!("connect-src {} {origin} {api_domain}", config::ipc_connect_src())
-    };
-    #[cfg(not(target_os = "windows"))]
     let connect_src = format!("connect-src {} {origin}", config::ipc_connect_src());
 
     let frame_src = frame_src_directive(ctx.isolation_schema);

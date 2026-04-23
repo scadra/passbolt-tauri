@@ -81,7 +81,6 @@ pub fn rendered_navigation_starting(app: &AppHandle, url: &tauri::Url) -> bool {
     // Allow navigation to this webview's own origin
     let trusted_domain = state.navigation.get_trusted_domain();
     let rendered_origin = webview_service::build_origin(&state.navigation.get_rendered_uuid(), trusted_domain.as_deref());
-    eprintln!("[NAV_DEBUG] rendered_navigation_starting url={} origin={} match={}", url_str, rendered_origin, url_str.starts_with(&rendered_origin));
     if url_str.starts_with(&rendered_origin) {
         return true;
     }
@@ -133,7 +132,6 @@ fn allow_rendered_navigation(url: &str, state: &AppState) -> bool {
 /// Equivalent of C# `DisallowMfaUrls()` + cookie extraction + `RedirectToWorkspace()`.
 pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
     let state = app.state::<AppState>();
-    eprintln!("[MFA_DEBUG] handle_mfa_completed_from_page_load — start");
 
     // DisallowMfaUrls equivalent
     state.navigation.set_mfa_active(false);

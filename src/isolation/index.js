@@ -13,8 +13,23 @@ window.__TAURI_ISOLATION_HOOK__ = (payload) => {
             return null;
         }
 
-        // 2. Event name validation — for emit commands, only allow known IPC channels.
+        // 2. Event name validation — for emit/listen/unlisten, only allow known IPC channels.
         // These match the constants in src-tauri/src/config.rs (lines 12-15).
+        // For listen/unlisten: prevents a webview from eavesdropping on channels it shouldn't access.
+        if (payload.cmd === 'plugin:event|listen' || payload.cmd === 'plugin:event|unlisten') {
+            const allowedEventNames = new Set([
+                'rendered-ipc-message',
+                'background-ipc-message',
+                'rendered-ipc-forward',
+                'background-ipc-forward',
+            ]);
+            const eventName = payload?.payload?.event;
+            if (typeof eventName !== 'string' || !allowedEventNames.has(eventName)) {
+                console.error('Isolation: Blocked listen/unlisten with invalid event name:', eventName);
+                return null;
+            }
+        }
+
         if (payload.cmd === 'plugin:event|emit') {
             const allowedEventNames = new Set([
                 'rendered-ipc-message',
@@ -60,8 +75,8 @@ window.__TAURI_ISOLATION_HOOK__ = (payload) => {
                 return null;
             }
 
-            // Must have a non-empty topic string
-            if (typeof parsed.topic !== 'string' || parsed.topic.length === 0) {
+            // Must have a non-empty topic string (trim guards against whitespace-only topics)
+            if (typeof parsed.topic !== 'string' || parsed.topic.trim().length === 0) {
                 console.error('Isolation: Blocked emit with missing or empty topic');
                 return null;
             }

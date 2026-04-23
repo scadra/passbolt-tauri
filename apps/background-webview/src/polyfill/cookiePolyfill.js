@@ -36,3 +36,4 @@ class CookiePolyfill {
 }
 
 window.chrome.cookies = new CookiePolyfill();
+Object.freeze(window.chrome.cookies);

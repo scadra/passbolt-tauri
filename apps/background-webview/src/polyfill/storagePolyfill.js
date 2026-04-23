@@ -165,4 +165,5 @@ class StoragePolyfill {
  */
 if (!window.chrome.storage?.local) {
   new StoragePolyfill();
+  Object.freeze(window.chrome.storage.local);
 }

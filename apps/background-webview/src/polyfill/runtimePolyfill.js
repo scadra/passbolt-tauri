@@ -28,4 +28,5 @@ window.chrome.runtime = {
   getManifest: () => ({version}),
   getURL: () => ""
 };
+Object.freeze(window.chrome.runtime);
 

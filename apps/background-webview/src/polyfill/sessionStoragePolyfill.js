@@ -15,3 +15,4 @@
 import SessionStoragePolyfill from "passbolt-browser-extension/src/all/common/polyfill/sessionStoragePolyfill";
 
 window.chrome.storage.session = new SessionStoragePolyfill();
+Object.freeze(window.chrome.storage.session);

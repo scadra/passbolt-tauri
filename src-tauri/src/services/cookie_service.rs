@@ -5,6 +5,7 @@
 //! 2. Inject all stored cookies into a WKWebView (before MFA navigation)
 //! 3. Extract cookies from a WKWebView back into `CookieState` (after MFA completion)
 
+use cookie::SameSite;
 use log::{info, warn};
 use tauri::webview::WebviewWindow;
 
@@ -35,6 +36,7 @@ pub fn inject_cookies_into_webview(
             .path("/")
             .secure(true)
             .http_only(true)
+            .same_site(SameSite::Strict)
             .build();
         if let Err(error) = webview.set_cookie(cookie) {
             warn!("[CookieService] Failed to inject cookie {}: {}", name, error);

@@ -24,3 +24,4 @@ export default class CommandsPolyfill {
 }
 
 window.chrome.commands = new CommandsPolyfill();
+Object.freeze(window.chrome.commands);

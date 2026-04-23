@@ -84,7 +84,7 @@ export default class AlarmsPolyfill {
 
     this._registeredAlarms[alarmName] = alarm;
     const timeout = setInterval(() => this.onAlarm.triggerAlarm(alarm), triggerDelay);
-    this._interval[alarmName] = timeout;
+    this._intervals[alarmName] = timeout;
   }
 
   /**
@@ -143,7 +143,9 @@ export default class AlarmsPolyfill {
    */
   async clear(alarmName) {
     clearTimeout(this._timeouts[alarmName]);
+    clearInterval(this._intervals[alarmName]);
     delete this._timeouts[alarmName];
+    delete this._intervals[alarmName];
     delete this._registeredAlarms[alarmName];
   }
 
@@ -154,7 +156,11 @@ export default class AlarmsPolyfill {
     for (const timeoutId of Object.values(this._timeouts)) {
       clearTimeout(timeoutId);
     }
+    for (const intervalId of Object.values(this._intervals)) {
+      clearInterval(intervalId);
+    }
     this._timeouts = {};
+    this._intervals = {};
     this._registeredAlarms = {};
   }
 }
@@ -214,3 +220,4 @@ export class OnAlarmEvent {
 }
 
 window.chrome.alarms = new AlarmsPolyfill();
+Object.freeze(window.chrome.alarms);

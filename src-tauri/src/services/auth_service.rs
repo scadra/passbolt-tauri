@@ -30,7 +30,7 @@ pub fn require_mfa(app: &AppHandle, state: &AppState, request: &MfaRequest) {
 
     // Cache passphrase for later workspace transition
     if let Some(ref passphrase) = request.passphrase {
-        state.auth.set_passphrase(passphrase.clone());
+        state.auth.set_passphrase(passphrase.as_str().to_owned());
     }
 
     // Inject cookies from CookieState into WKWebView so the server
@@ -60,6 +60,7 @@ pub fn require_mfa(app: &AppHandle, state: &AppState, request: &MfaRequest) {
 pub fn logout(app: &AppHandle, state: &AppState) {
     info!("[AuthService] Logout — redirecting to auth");
     state.credentials.clear();
+    state.cookies.clear();
     redirect_to_auth(app, state);
 }
 

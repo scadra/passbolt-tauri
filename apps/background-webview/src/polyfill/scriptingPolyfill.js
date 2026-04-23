@@ -15,3 +15,4 @@
 import ScriptingPolyfill from "passbolt-browser-extension/src/all/common/polyfill/scriptingPolyfill";
 
 window.chrome.scripting = new ScriptingPolyfill();
+Object.freeze(window.chrome.scripting);

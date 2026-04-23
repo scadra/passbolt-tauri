@@ -189,5 +189,25 @@ unsafe fn disable_wkcontent_view_context_menu() {
     });
 }
 
-// Windows and Linux hardening will be added when those platforms are ported.
-// See the C# mapping table in the module doc for the WebView2 settings to implement.
+// ── Windows (WebView2) ────────────────────────────────────────
+//
+// TODO: Implement WebView2-specific hardening. See the C# mapping table
+// in the module doc for the settings to implement:
+// - SetIsSwipeNavigationEnabled(false)
+// - SetIsPasswordAutosaveEnabled(false)
+// - SetAreHostObjectsAllowed(false)
+// - SetAreDefaultScriptDialogsEnabled(false)
+// - SetAreDefaultContextMenusEnabled(false)
+// - SetAreBrowserAcceleratorKeysEnabled(false)
+
+#[cfg(windows)]
+fn apply_windows_settings(_webview: &tauri::webview::PlatformWebview, label: &str) {
+    debug!("[Security/{}] Windows WebView2 hardening not yet implemented", label);
+}
+
+// ── Linux (WebKitGTK) ─────────────────────────────────────────
+
+#[cfg(target_os = "linux")]
+fn apply_linux_settings(_webview: &tauri::webview::PlatformWebview, label: &str) {
+    debug!("[Security/{}] Linux WebKitGTK hardening not yet implemented", label);
+}

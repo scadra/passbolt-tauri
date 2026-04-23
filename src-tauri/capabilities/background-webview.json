@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "background-webview",
+  "description": "Capability for the background (hidden crypto worker) webview — no opener permission",
+  "windows": ["background-webview"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "core:event:allow-listen",
+      "allow": [
+        {
+          "windows": ["background-webview"]
+        }
+      ]
+    },
+    {
+      "identifier": "core:event:allow-emit",
+      "allow": [
+        {
+          "windows": ["background-webview"]
+        }
+      ]
+    }
+  ]
+}

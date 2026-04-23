@@ -51,4 +51,10 @@ impl CookieState {
             .collect::<Vec<_>>()
             .join("; "))
     }
+
+    /// Clear all stored cookies.
+    /// Called on logout to ensure session cookies don't survive across sessions.
+    pub fn clear(&self) {
+        self.cookies.lock().unwrap().clear();
+    }
 }

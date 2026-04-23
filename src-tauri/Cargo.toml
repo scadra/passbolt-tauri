@@ -26,7 +26,8 @@ rust-embed = { version = "8.0", features = ["include-exclude"] }
 url = "2.5.8"
 dirs = "6.0.0"
 regex-lite = "0.1"
-zeroize = { version = "1", features = ["derive"] }
+zeroize = { version = "1", features = ["derive", "serde"] }
+cookie = "0.18"
 reqwest = { version = "0.12", features = ["json"] }
 base64 = "0.22"
 arboard = { version = "3", default-features = false }

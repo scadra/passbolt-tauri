@@ -150,8 +150,21 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
     state.navigation.set_mfa_active(false);
     eprintln!("[MFA_DEBUG] handle_mfa_completed_from_page_load — redirecting to workspace");
 
-    // RedirectToWorkspace (passphrase already cached from require_mfa)
+    // RedirectToWorkspace — navigates Background to workspace.
+    // Then also navigate Rendered (which is stuck on the external MFA page
+    // and can't receive IPC messages to trigger its own transition).
     crate::services::auth_service::redirect_to_workspace(app, &state);
+
+    let rendered_url = crate::services::webview_service::build_webview_url(
+        "rendered-webview",
+        &state.navigation.get_rendered_uuid(),
+        &crate::state::AppMode::Workspace,
+    );
+    crate::services::topics::handlers::navigate_webview(
+        app,
+        config::RENDERED_WEBVIEW_LABEL,
+        &rendered_url,
+    );
     eprintln!("[MFA_DEBUG] handle_mfa_completed_from_page_load — done");
 }
 

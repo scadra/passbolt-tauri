@@ -88,6 +88,7 @@ window.__TAURI_ISOLATION_HOOK__ = (payload) => {
         // listeners using webview.listen() which scopes events to their source webview,
         // preventing cross-webview impersonation.
 
+        console.log('[Isolation] Forwarding:', payload.cmd, payload?.payload?.event);
         return payload;
     } catch (error) {
         console.error('Isolation: Hook error, blocking message:', error);

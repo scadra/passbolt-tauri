@@ -186,6 +186,7 @@ class IPCHandler {
       ipc = requestArgs[0];
     }
 
+    console.log('[IPC-Rendered] Emitting: rendered-ipc-message, topic:', ipc.topic);
     await tauriEmit('rendered-ipc-message', ipc);
   }
 

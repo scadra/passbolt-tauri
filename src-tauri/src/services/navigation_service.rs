@@ -136,34 +136,45 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
     // DisallowMfaUrls equivalent
     state.navigation.set_mfa_active(false);
 
-    // Extract MFA cookies from the Rendered webview (which was on the API domain).
-    // Done async because cookies_for_url() deadlocks on the main thread on Windows.
-    let app_for_cookies = app.clone();
+    // Extract cookies + navigate to workspace.
+    // Cannot navigate the Rendered webview synchronously from its own on_page_load
+    // callback (deadlock). On macOS, Rendered is still on an internal page with IPC
+    // and gets navigated later via the bilateral handshake. On Windows, Rendered is
+    // on the external MFA page (no IPC), so we must navigate it explicitly via spawn.
+    let app_handle = app.clone();
     let cookie_state = state.cookies.clone();
-    let domain_for_cookies = state.navigation.get_trusted_domain();
+    let trusted_domain = state.navigation.get_trusted_domain();
+    let rendered_uuid = state.navigation.get_rendered_uuid();
+
+    // Navigate Background to workspace (different webview, safe from on_page_load)
+    crate::services::auth_service::redirect_to_workspace(app, &state);
+
+    // Deferred: extract cookies + navigate Rendered (off main thread to avoid deadlock)
     tauri::async_runtime::spawn(async move {
-        if let Some(webview) = app_for_cookies.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
-            if let Some(domain) = &domain_for_cookies {
+        // Extract MFA cookies from Rendered webview's browser cookie store
+        if let Some(webview) = app_handle.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
+            if let Some(domain) = &trusted_domain {
                 crate::services::cookie_service::extract_cookies_from_webview(
                     &webview, &cookie_state, domain,
                 );
             }
         }
-    });
 
-    // Navigate to workspace — Background first, then Rendered (which is stuck
-    // on the external MFA page and can't receive IPC messages).
-    crate::services::auth_service::redirect_to_workspace(app, &state);
-    let trusted_domain = state.navigation.get_trusted_domain();
-    let rendered_url = crate::services::webview_service::build_webview_url(
-        "rendered-webview",
-        &state.navigation.get_rendered_uuid(),
-        &crate::state::AppMode::Workspace,
-        trusted_domain.as_deref(),
-    );
-    crate::services::topics::handlers::navigate_webview(
-        app, config::RENDERED_WEBVIEW_LABEL, &rendered_url,
-    );
+        // On Windows, Rendered is stuck on the external MFA page (no IPC).
+        // Navigate it to workspace explicitly.
+        #[cfg(target_os = "windows")]
+        {
+            let rendered_url = crate::services::webview_service::build_webview_url(
+                "rendered-webview",
+                &rendered_uuid,
+                &crate::state::AppMode::Workspace,
+                trusted_domain.as_deref(),
+            );
+            crate::services::topics::handlers::navigate_webview(
+                &app_handle, config::RENDERED_WEBVIEW_LABEL, &rendered_url,
+            );
+        }
+    });
 }
 
 // ── New Window Requests ────────────────────────────────────────

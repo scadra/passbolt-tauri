@@ -25,13 +25,14 @@ pub struct IndexContext<'a> {
 /// Generate the dynamic `index.html` for a given webview and mode.
 pub fn generate_index_html(ctx: &IndexContext) -> String {
     let csp = generate_csp(ctx);
-    let bundle_src = get_bundle_src(ctx.target, ctx.mode, ctx.uuid);
+    let bundle_src = get_bundle_src(ctx.target, ctx.mode, ctx.uuid, ctx.trusted_domain);
     let base = asset_base(
         match ctx.target {
             WebviewTarget::Rendered => "rendered-webview",
             WebviewTarget::Background => "background-webview",
         },
         ctx.uuid,
+        ctx.trusted_domain,
     );
 
     // Rendered gets the stylesheet manager that dynamically loads the CSS theme
@@ -52,6 +53,7 @@ pub fn generate_index_html(ctx: &IndexContext) -> String {
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="{csp}" />
     <meta name="instance-uuid" content="{uuid}" />
+    <meta name="fetch-proxy" content="{fetch_proxy}" />
     <style>#__tauri_isolation__ {{ display: none !important; }}</style>
     {stylesheet_tag}
 </head>
@@ -60,6 +62,7 @@ pub fn generate_index_html(ctx: &IndexContext) -> String {
 </body>
 </html>"#,
         uuid = ctx.uuid,
+        fetch_proxy = if cfg!(target_os = "windows") { "disabled" } else { "enabled" },
     )
 }
 
@@ -82,14 +85,11 @@ pub fn generate_csp(ctx: &IndexContext) -> String {
 
 /// Base URL for a webview's assets, in the format the browser sees.
 ///
-/// macOS:   `passbolt://{uuid}.passbolt.local/apps/{webview}/`
-/// Windows: `http://passbolt.{uuid}.passbolt.local/apps/{webview}/`
-fn asset_base(webview_dir: &str, uuid: &str) -> String {
-    config::browser_url(
-        config::PROTOCOL_SCHEME,
-        &format!("{}{}", uuid, config::DOMAIN_SUFFIX),
-        &format!("/apps/{}/", webview_dir),
-    )
+/// macOS:   `passbolt://{uuid}.passbolt.localhost/apps/{webview}/`
+/// Windows: `https://passbolt.{uuid}.cloud.passbolt.com/apps/{webview}/` (with trusted domain)
+fn asset_base(webview_dir: &str, uuid: &str, trusted_domain: Option<&str>) -> String {
+    let host = config::webview_host(uuid, trusted_domain);
+    config::browser_url(&host, &format!("/apps/{}/", webview_dir))
 }
 
 /// `frame-src` directive for Tauri's isolation iframe — platform-aware.
@@ -107,7 +107,7 @@ fn frame_src_directive(isolation_schema: Option<&str>) -> String {
 ///
 /// Key security property: `connect-src` NEVER includes the API domain.
 fn generate_rendered_csp(ctx: &IndexContext) -> String {
-    let base = asset_base("rendered-webview", ctx.uuid);
+    let base = asset_base("rendered-webview", ctx.uuid, ctx.trusted_domain);
 
     let script_src = format!("script-src {base}");
     let style_src = format!("style-src 'self' 'unsafe-inline' {base}dist/themes/");
@@ -125,7 +125,7 @@ fn generate_rendered_csp(ctx: &IndexContext) -> String {
         }
     };
 
-    let origin = config::browser_origin(ctx.uuid);
+    let origin = config::browser_origin(ctx.uuid, ctx.trusted_domain);
     let connect_src = match ctx.mode {
         AppMode::Import => {
             format!("connect-src {}", config::ipc_connect_src())
@@ -156,13 +156,22 @@ fn generate_rendered_csp(ctx: &IndexContext) -> String {
 /// All HTTP requests go through the Rust proxy via IPC events, so no HTTPS
 /// domain needs to be whitelisted here.
 fn generate_background_csp(ctx: &IndexContext) -> String {
-    let base = asset_base("background-webview", ctx.uuid);
+    let base = asset_base("background-webview", ctx.uuid, ctx.trusted_domain);
 
     let script_src = format!("script-src {base}");
     // The browser-extension injects inline styles — safe here (headless worker, no visible UI)
     let style_src = "style-src 'unsafe-inline'".to_string();
 
-    let origin = config::browser_origin(ctx.uuid);
+    let origin = config::browser_origin(ctx.uuid, ctx.trusted_domain);
+
+    // On Windows, the Background webview makes API calls directly through the browser
+    // (fetch polyfill disabled), so the trusted domain must be in connect-src.
+    #[cfg(target_os = "windows")]
+    let connect_src = {
+        let api_domain = format_trusted_domain(ctx.trusted_domain);
+        format!("connect-src {} {origin} {api_domain}", config::ipc_connect_src())
+    };
+    #[cfg(not(target_os = "windows"))]
     let connect_src = format!("connect-src {} {origin}", config::ipc_connect_src());
 
     let frame_src = frame_src_directive(ctx.isolation_schema);
@@ -181,7 +190,7 @@ fn generate_background_csp(ctx: &IndexContext) -> String {
 }
 
 /// Returns the browser-visible URL for the JS bundle.
-fn get_bundle_src(target: &WebviewTarget, mode: &AppMode, uuid: &str) -> String {
+fn get_bundle_src(target: &WebviewTarget, mode: &AppMode, uuid: &str, trusted_domain: Option<&str>) -> String {
     let (webview_dir, name) = match target {
         WebviewTarget::Rendered => ("rendered-webview", "rendered"),
         WebviewTarget::Background => ("background-webview", "background"),
@@ -191,11 +200,8 @@ fn get_bundle_src(target: &WebviewTarget, mode: &AppMode, uuid: &str) -> String 
         AppMode::Auth => "auth",
         AppMode::Workspace => "workspace",
     };
-    config::browser_url(
-        config::PROTOCOL_SCHEME,
-        &format!("{}{}", uuid, config::DOMAIN_SUFFIX),
-        &format!("/apps/{}/dist/{}-{}.js", webview_dir, name, mode_suffix),
-    )
+    let host = config::webview_host(uuid, trusted_domain);
+    config::browser_url(&host, &format!("/apps/{}/dist/{}-{}.js", webview_dir, name, mode_suffix))
 }
 
 /// Format trusted domain with trailing slash, or empty string if None.

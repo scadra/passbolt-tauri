@@ -25,15 +25,16 @@ pub fn create_webviews(
     mode: &AppMode,
     rendered_uuid: &str,
     background_uuid: &str,
+    trusted_domain: Option<&str>,
 ) -> Result<(), tauri::Error> {
-    let rendered_url = build_webview_url("rendered-webview", rendered_uuid, mode);
-    let background_url = build_webview_url("background-webview", background_uuid, mode);
+    let rendered_url = build_webview_url("rendered-webview", rendered_uuid, mode, trusted_domain);
+    let background_url = build_webview_url("background-webview", background_uuid, mode, trusted_domain);
 
     // --- Rendered webview ---
     let app_for_rv_nav = app.clone();
     let app_for_rv_new_window = app.clone();
     let app_for_rv = app.clone();
-    // On Windows, navigate via the HTTP-mapped URL instead of the custom scheme.
+    // On Windows, navigate via the HTTPS-mapped URL instead of the custom scheme.
     // The custom protocol handler is still registered and intercepts these requests.
     // This avoids WebView2's problematic custom-scheme-to-HTTP origin mapping.
     #[cfg(target_os = "windows")]
@@ -46,6 +47,7 @@ pub fn create_webviews(
         config::RENDERED_WEBVIEW_LABEL,
         rendered_webview_url,
     )
+    .use_https_scheme(cfg!(target_os = "windows"))
     .title("Passbolt")
     .inner_size(1024.0, 768.0)
     .visible(false) // Hidden until hardened
@@ -142,6 +144,7 @@ pub fn create_webviews(
         config::BACKGROUND_WEBVIEW_LABEL,
         background_webview_url,
     )
+    .use_https_scheme(cfg!(target_os = "windows"))
     .title("Passbolt Background")
     .visible(false) // Background webview is always hidden
     .skip_taskbar(true)
@@ -192,27 +195,29 @@ pub fn create_webviews(
 
 /// Build the browser-visible origin prefix for a webview.
 ///
-/// macOS:   `passbolt://{uuid}.passbolt.local/`
-/// Windows: `http://passbolt.{uuid}.passbolt.local/`
-///
+/// Uses the trusted domain for cookie sharing on Windows (auth/workspace).
 /// Used by `navigation_service` to validate that a webview only navigates
 /// to URLs on its own origin.
-pub fn build_origin(uuid: &str) -> String {
-    config::browser_origin(uuid)
+pub fn build_origin(uuid: &str, trusted_domain: Option<&str>) -> String {
+    config::browser_origin(uuid, trusted_domain)
 }
 
-/// Build the `passbolt://{uuid}.passbolt.local/apps/{webview}/index-{mode}.html` URL.
-pub fn build_webview_url(webview_dir: &str, uuid: &str, mode: &AppMode) -> String {
+/// Build the `passbolt://{uuid}.{domain}/apps/{webview}/index-{mode}.html` URL.
+///
+/// This is the internal URL format (Tauri normalises it). On Windows,
+/// `to_navigation_url()` converts it to the browser format for navigation.
+pub fn build_webview_url(webview_dir: &str, uuid: &str, mode: &AppMode, trusted_domain: Option<&str>) -> String {
     let mode_suffix = match mode {
         AppMode::Import => "import",
         AppMode::Auth => "auth",
         AppMode::Workspace => "workspace",
     };
+    let suffix = config::effective_domain_suffix(trusted_domain);
     format!(
         "{}://{}{}/apps/{}/index-{}.html",
         config::PROTOCOL_SCHEME,
         uuid,
-        config::DOMAIN_SUFFIX,
+        suffix,
         webview_dir,
         mode_suffix,
     )

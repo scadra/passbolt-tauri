@@ -75,8 +75,12 @@ impl ProtocolService {
             return error_response(StatusCode::FORBIDDEN, "Path traversal detected");
         }
 
-        // Validate host ends with .passbolt.local
-        if !host.ends_with(config::DOMAIN_SUFFIX) {
+        // Validate host ends with a known domain suffix.
+        // On Windows, the domain may be dynamic (matching the trusted API domain
+        // for cookie sharing), so we check against both the default and trusted suffixes.
+        let trusted_domain = state.navigation.get_trusted_domain();
+        let effective_suffix = config::effective_domain_suffix(trusted_domain.as_deref());
+        if !host.ends_with(config::DOMAIN_SUFFIX) && !host.ends_with(&effective_suffix) {
             return error_response(StatusCode::FORBIDDEN, "Invalid domain");
         }
 
@@ -199,7 +203,8 @@ pub fn handle_protocol_request(
         return error_response(StatusCode::FORBIDDEN, "Path traversal detected");
     }
 
-    if !host.ends_with(config::DOMAIN_SUFFIX) {
+    let effective_suffix = config::effective_domain_suffix(trusted_domain);
+    if !host.ends_with(config::DOMAIN_SUFFIX) && !host.ends_with(&effective_suffix) {
         return error_response(StatusCode::FORBIDDEN, "Invalid domain");
     }
 

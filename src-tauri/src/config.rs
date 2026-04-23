@@ -47,37 +47,75 @@ pub const BACKGROUND_CLIPBOARD_SET_TEXT: &str = "passbolt.background.clipboard-s
 
 // ── Browser-facing URL helpers ──────────────────────────────────
 //
-// On Windows, WebView2 maps custom protocol schemes to HTTP:
-//   passbolt://host/path  →  http://passbolt.host/path
-//   ipc://localhost/cmd   →  http://ipc.localhost/cmd
-//   isolation-x://localhost → http://isolation-x.localhost
+// On Windows with useHttpsScheme, WebView2 maps custom protocols to HTTPS:
+//   passbolt://host/path  →  https://passbolt.host/path
+//   ipc://localhost/cmd   →  https://ipc.localhost/cmd
+//   isolation-x://localhost → https://isolation-x.localhost
 //
-// These helpers generate URLs as the **browser** sees them, used for
-// CSP directives and HTML content (script src, etc.).
+// On Windows auth/workspace, the domain matches the API server for cookie sharing:
+//   passbolt://uuid.cloud.passbolt.com/path → https://passbolt.uuid.cloud.passbolt.com/path
+//   (subdomain of cloud.passbolt.com → cookies shared automatically)
+//
+// On macOS, custom schemes work natively: passbolt://uuid.passbolt.localhost/path
 // The Rust protocol handler is NOT affected (Tauri normalises back).
+
+/// The scheme prefix used by WebView2 for custom protocol URLs.
+#[cfg(target_os = "windows")]
+const BROWSER_SCHEME: &str = "https";
+#[cfg(not(target_os = "windows"))]
+const BROWSER_SCHEME: &str = "passbolt";
+
+/// Extract the domain suffix from a trusted domain URL for cookie sharing.
+///
+/// `"https://cloud.passbolt.com"` → `".cloud.passbolt.com"`
+///
+/// On macOS or when no trusted domain is available, returns `DOMAIN_SUFFIX`.
+pub fn effective_domain_suffix(trusted_domain: Option<&str>) -> String {
+    if let Some(domain) = trusted_domain {
+        if let Ok(parsed) = url::Url::parse(domain) {
+            if let Some(host) = parsed.host_str() {
+                return format!(".{}", host);
+            }
+        }
+    }
+    DOMAIN_SUFFIX.to_string()
+}
 
 /// Build a URL in the format the browser will see on the current platform.
 ///
-/// macOS (WKWebView):  `{scheme}://{host}{path}`
-/// Windows (WebView2): `http://{scheme}.{host}{path}`
-pub fn browser_url(scheme: &str, host: &str, path: &str) -> String {
+/// macOS:   `passbolt://{host}{path}`
+/// Windows: `https://passbolt.{host}{path}`
+pub fn browser_url(host: &str, path: &str) -> String {
     #[cfg(target_os = "windows")]
-    { format!("http://{}.{}{}", scheme, host, path) }
+    { format!("{}://passbolt.{}{}", BROWSER_SCHEME, host, path) }
 
     #[cfg(not(target_os = "windows"))]
-    { format!("{}://{}{}", scheme, host, path) }
+    { format!("{}://{}{}", BROWSER_SCHEME, host, path) }
 }
 
-/// Browser-visible origin for a webview: `passbolt://uuid.passbolt.local/` (macOS)
-/// or `http://passbolt.uuid.passbolt.local/` (Windows).
-pub fn browser_origin(uuid: &str) -> String {
-    browser_url(PROTOCOL_SCHEME, &format!("{}{}", uuid, DOMAIN_SUFFIX), "/")
+/// Browser-visible origin for a webview, using the effective domain suffix.
+///
+/// macOS:   `passbolt://uuid.passbolt.localhost/`
+/// Windows: `https://passbolt.uuid.cloud.passbolt.com/` (with trusted domain)
+///          `https://passbolt.uuid.passbolt.localhost/`  (import, no trusted domain)
+pub fn browser_origin(uuid: &str, trusted_domain: Option<&str>) -> String {
+    let suffix = effective_domain_suffix(trusted_domain);
+    browser_url(&format!("{}{}", uuid, suffix), "/")
+}
+
+/// Build the full webview host (without scheme prefix).
+///
+/// macOS:   `uuid.passbolt.localhost`
+/// Windows: `uuid.cloud.passbolt.com` (with trusted domain)
+pub fn webview_host(uuid: &str, trusted_domain: Option<&str>) -> String {
+    let suffix = effective_domain_suffix(trusted_domain);
+    format!("{}{}", uuid, suffix)
 }
 
 /// IPC connect-src for CSP — platform-aware.
 pub fn ipc_connect_src() -> &'static str {
     #[cfg(target_os = "windows")]
-    { "http://ipc.localhost/plugin:event|listen http://ipc.localhost/plugin:event|emit http://ipc.localhost/plugin:event|unlisten" }
+    { "https://ipc.localhost/plugin:event|listen https://ipc.localhost/plugin:event|emit https://ipc.localhost/plugin:event|unlisten" }
 
     #[cfg(not(target_os = "windows"))]
     { "ipc://localhost/plugin:event|listen ipc://localhost/plugin:event|emit ipc://localhost/plugin:event|unlisten" }
@@ -86,7 +124,7 @@ pub fn ipc_connect_src() -> &'static str {
 /// `frame-src` value for the Tauri isolation iframe — platform-aware.
 pub fn isolation_frame_src(schema: &str) -> String {
     #[cfg(target_os = "windows")]
-    { format!("http://{}.localhost", schema) }
+    { format!("https://{}.localhost", schema) }
 
     #[cfg(not(target_os = "windows"))]
     { format!("{}://localhost", schema) }
@@ -95,11 +133,10 @@ pub fn isolation_frame_src(schema: &str) -> String {
 /// Convert a `passbolt://` internal URL to the browser-navigable format.
 ///
 /// On macOS, returns the URL unchanged (WKWebView handles custom schemes natively).
-/// On Windows, rewrites to `http://passbolt.{host}/{path}` because WebView2 maps
-/// custom schemes to HTTP and doesn't resolve `passbolt://` for navigations.
+/// On Windows, rewrites to `https://passbolt.{host}/{path}` for WebView2 navigation.
 pub fn to_navigation_url(url: &str) -> String {
     #[cfg(target_os = "windows")]
-    { url.replace("passbolt://", "http://passbolt.") }
+    { url.replace("passbolt://", "https://passbolt.") }
 
     #[cfg(not(target_os = "windows"))]
     { url.to_string() }

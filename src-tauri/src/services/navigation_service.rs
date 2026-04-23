@@ -40,15 +40,18 @@ const ALLOWED_EXTERNAL_EXACT: &[&str] = &[
 pub fn navigate_both_webviews(app: &AppHandle, state: &AppState, mode: AppMode) {
     state.reset_for_navigation();
     state.navigation.set_mode(mode.clone());
+    let trusted_domain = state.navigation.get_trusted_domain();
     let background_url = webview_service::build_webview_url(
         "background-webview",
         &state.navigation.get_background_uuid(),
         &mode,
+        trusted_domain.as_deref(),
     );
     let rendered_url = webview_service::build_webview_url(
         "rendered-webview",
         &state.navigation.get_rendered_uuid(),
         &mode,
+        trusted_domain.as_deref(),
     );
     handlers::navigate_webview(app, config::BACKGROUND_WEBVIEW_LABEL, &background_url);
     handlers::navigate_webview(app, config::RENDERED_WEBVIEW_LABEL, &rendered_url);
@@ -76,7 +79,8 @@ pub fn rendered_navigation_starting(app: &AppHandle, url: &tauri::Url) -> bool {
     let url_str = url.to_string();
 
     // Allow navigation to this webview's own origin
-    let rendered_origin = webview_service::build_origin(&state.navigation.get_rendered_uuid());
+    let trusted_domain = state.navigation.get_trusted_domain();
+    let rendered_origin = webview_service::build_origin(&state.navigation.get_rendered_uuid(), trusted_domain.as_deref());
     eprintln!("[NAV_DEBUG] rendered_navigation_starting url={} origin={} match={}", url_str, rendered_origin, url_str.starts_with(&rendered_origin));
     if url_str.starts_with(&rendered_origin) {
         return true;
@@ -149,37 +153,23 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
         crate::services::auth_service::redirect_to_workspace(app, &state);
     }
 
-    // --- Windows: navigate immediately, extract cookies async ---
-    // cookies_for_url() deadlocks on the main thread (WebView2's GetCookies is
-    // async, Tauri wraps it synchronously). Navigate both webviews first (instant),
-    // then extract MFA cookies off the main thread. Cookies arrive before the
-    // workspace JS boots up and makes its first API call.
+    // --- Windows: navigate both webviews to workspace ---
+    // Cookie sharing works automatically because the webview domain matches
+    // the API domain (both are subdomains of the trusted domain).
+    // No cookie extraction needed — the browser handles it.
     #[cfg(target_os = "windows")]
     {
-        // Navigate both webviews to workspace immediately
         crate::services::auth_service::redirect_to_workspace(app, &state);
+        let trusted_domain = state.navigation.get_trusted_domain();
         let rendered_url = crate::services::webview_service::build_webview_url(
             "rendered-webview",
             &state.navigation.get_rendered_uuid(),
             &crate::state::AppMode::Workspace,
+            trusted_domain.as_deref(),
         );
         crate::services::topics::handlers::navigate_webview(
             app, config::RENDERED_WEBVIEW_LABEL, &rendered_url,
         );
-
-        // Extract cookies off main thread in parallel
-        let app_handle = app.clone();
-        let cookie_state = state.cookies.clone();
-        let trusted_domain = state.navigation.get_trusted_domain();
-        tauri::async_runtime::spawn(async move {
-            if let Some(webview) = app_handle.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
-                if let Some(domain) = &trusted_domain {
-                    crate::services::cookie_service::extract_cookies_from_webview(
-                        &webview, &cookie_state, domain,
-                    );
-                }
-            }
-        });
     }
 }
 
@@ -235,7 +225,8 @@ pub fn handle_new_window_requested(app: &AppHandle, url: &str) {
 /// else as defense in depth — the private key lives in this webview.
 pub fn background_navigation_starting(app: &AppHandle, url: &tauri::Url) -> bool {
     let state = app.state::<AppState>();
-    let background_origin = webview_service::build_origin(&state.navigation.get_background_uuid());
+    let trusted_domain = state.navigation.get_trusted_domain();
+    let background_origin = webview_service::build_origin(&state.navigation.get_background_uuid(), trusted_domain.as_deref());
     let url_str = url.to_string();
 
     if url_str.starts_with(&background_origin) {

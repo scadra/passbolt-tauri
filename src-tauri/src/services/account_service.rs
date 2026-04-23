@@ -58,10 +58,12 @@ pub fn save_account(
         state.ipc.add_pending_request(request_id, config::SAVE_ACCOUNT);
     }
 
+    let trusted_domain = state.navigation.get_trusted_domain();
     let bg_url = build_webview_url(
         "background-webview",
         &state.navigation.get_background_uuid(),
         &AppMode::Auth,
+        trusted_domain.as_deref(),
     );
     handlers::navigate_webview(app, config::BACKGROUND_WEBVIEW_LABEL, &bg_url);
 
@@ -88,11 +90,13 @@ pub fn rollback_import(app: &AppHandle, state: &AppState) {
         "background-webview",
         &state.navigation.get_background_uuid(),
         &AppMode::Import,
+        None,
     );
     let rv_url = build_webview_url(
         "rendered-webview",
         &state.navigation.get_rendered_uuid(),
         &AppMode::Import,
+        None,
     );
     handlers::navigate_webview(app, config::BACKGROUND_WEBVIEW_LABEL, &bg_url);
     handlers::navigate_webview(app, config::RENDERED_WEBVIEW_LABEL, &rv_url);

@@ -77,10 +77,10 @@ pub fn browser_origin(uuid: &str) -> String {
 /// IPC connect-src for CSP — platform-aware.
 pub fn ipc_connect_src() -> &'static str {
     #[cfg(target_os = "windows")]
-    { "http://ipc.localhost/plugin:event|listen http://ipc.localhost/plugin:event|emit" }
+    { "http://ipc.localhost/plugin:event|listen http://ipc.localhost/plugin:event|emit http://ipc.localhost/plugin:event|unlisten" }
 
     #[cfg(not(target_os = "windows"))]
-    { "ipc://localhost/plugin:event|listen ipc://localhost/plugin:event|emit" }
+    { "ipc://localhost/plugin:event|listen ipc://localhost/plugin:event|emit ipc://localhost/plugin:event|unlisten" }
 }
 
 /// `frame-src` value for the Tauri isolation iframe — platform-aware.

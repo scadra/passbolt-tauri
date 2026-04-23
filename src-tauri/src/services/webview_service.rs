@@ -29,17 +29,18 @@ pub fn create_webviews(
     let rendered_url = build_webview_url("rendered-webview", rendered_uuid, mode);
     let background_url = build_webview_url("background-webview", background_uuid, mode);
 
-    // On Windows, use Tauri's native asset serving (https://tauri.localhost/)
-    // instead of custom protocol, to test if isolation works without it.
-    #[cfg(target_os = "windows")]
-    let rendered_webview_url = tauri::WebviewUrl::App("index.html".into());
-    #[cfg(not(target_os = "windows"))]
-    let rendered_webview_url = tauri::WebviewUrl::CustomProtocol(rendered_url.parse().unwrap());
-
     // --- Rendered webview ---
     let app_for_rv_nav = app.clone();
     let app_for_rv_new_window = app.clone();
     let app_for_rv = app.clone();
+    // On Windows, navigate via the HTTP-mapped URL instead of the custom scheme.
+    // The custom protocol handler is still registered and intercepts these requests.
+    // This avoids WebView2's problematic custom-scheme-to-HTTP origin mapping.
+    #[cfg(target_os = "windows")]
+    let rendered_webview_url = tauri::WebviewUrl::External(rendered_url.replace("passbolt://", "http://passbolt.").parse().unwrap());
+    #[cfg(not(target_os = "windows"))]
+    let rendered_webview_url = tauri::WebviewUrl::CustomProtocol(rendered_url.parse().unwrap());
+
     let rendered_window = tauri::WebviewWindowBuilder::new(
         app,
         config::RENDERED_WEBVIEW_LABEL,
@@ -124,13 +125,13 @@ pub fn create_webviews(
     info!("Rendered webview created (uuid: {})", rendered_uuid);
 
     // --- Background webview ---
+    let app_for_bg_nav = app.clone();
+    let app_for_bg = app.clone();
     #[cfg(target_os = "windows")]
-    let background_webview_url = tauri::WebviewUrl::App("index.html".into());
+    let background_webview_url = tauri::WebviewUrl::External(background_url.replace("passbolt://", "http://passbolt.").parse().unwrap());
     #[cfg(not(target_os = "windows"))]
     let background_webview_url = tauri::WebviewUrl::CustomProtocol(background_url.parse().unwrap());
 
-    let app_for_bg_nav = app.clone();
-    let app_for_bg = app.clone();
     let background_window = tauri::WebviewWindowBuilder::new(
         app,
         config::BACKGROUND_WEBVIEW_LABEL,

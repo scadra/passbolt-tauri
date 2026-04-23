@@ -20,26 +20,18 @@ fn main() {
 
     let protocol_service = ProtocolService::new(isolation_schema.clone());
 
-    let builder = tauri::Builder::default()
+    tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AppState::default())
-        .invoke_handler(tauri::generate_handler![debug_ping]);
-
-    // On Windows, skip the custom protocol to test if isolation works without it.
-    // WebView2 maps custom schemes to http://{scheme}.localhost/ which may interfere
-    // with the isolation iframe's origin handling.
-    #[cfg(not(target_os = "windows"))]
-    let builder = builder.register_asynchronous_uri_scheme_protocol(
-        config::PROTOCOL_SCHEME,
-        move |ctx, request, responder| {
+        .invoke_handler(tauri::generate_handler![debug_ping])
+        // passbolt:// — serves embedded webview assets (HTML, JS, CSS, fonts)
+        .register_asynchronous_uri_scheme_protocol(config::PROTOCOL_SCHEME, move |ctx, request, responder| {
             let url = request.uri().to_string();
             let state = ctx.app_handle().state::<AppState>();
             let response = protocol_service.handle_request(&url, &state);
             responder.respond(response);
-        },
-    );
-
-    builder.setup(move |app| {
+        })
+        .setup(move |app| {
             info!("Passbolt Desktop starting...");
 
             // Store isolation schema in state

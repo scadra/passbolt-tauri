@@ -129,8 +129,13 @@ fn allow_rendered_navigation(url: &str, state: &AppState) -> bool {
 /// Equivalent of C# `DisallowMfaUrls()` + cookie extraction + `RedirectToWorkspace()`.
 pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
     let state = app.state::<AppState>();
+    eprintln!("[MFA_DEBUG] handle_mfa_completed_from_page_load — start");
 
-    // Extract cookies from WKWebView → CookieState
+    // Extract cookies from webview → CookieState.
+    // Skip on Windows: cookies_for_url() deadlocks on the main thread because
+    // WebView2's GetCookies is async and Tauri wraps it synchronously.
+    // Cookies are already in CookieState from HTTP response headers.
+    #[cfg(not(target_os = "windows"))]
     if let Some(webview) = app.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
         if let Some(domain) = state.navigation.get_trusted_domain() {
             crate::services::cookie_service::extract_cookies_from_webview(
@@ -143,9 +148,11 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
 
     // DisallowMfaUrls equivalent
     state.navigation.set_mfa_active(false);
+    eprintln!("[MFA_DEBUG] handle_mfa_completed_from_page_load — redirecting to workspace");
 
     // RedirectToWorkspace (passphrase already cached from require_mfa)
     crate::services::auth_service::redirect_to_workspace(app, &state);
+    eprintln!("[MFA_DEBUG] handle_mfa_completed_from_page_load — done");
 }
 
 // ── New Window Requests ────────────────────────────────────────

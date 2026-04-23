@@ -11,6 +11,14 @@ import IPCHandler from '../shared/IPCHandler';
 
 const originalFetch = window.fetch.bind(window);
 
+// On Windows, the fetch polyfill is disabled — API calls go directly through the browser.
+// Cookies (session, MFA) are shared automatically because the webview domain matches the API.
+const fetchProxyDisabled = document.querySelector('meta[name="fetch-proxy"]')?.content === 'disabled';
+if (fetchProxyDisabled) {
+  console.log('[fetchPolyfill] Disabled — browser handles API calls directly');
+}
+
+if (!fetchProxyDisabled) {
 console.log('[fetchPolyfill] Installed — window.fetch replaced');
 
 window.fetch = async function(input, init = {}) {
@@ -81,3 +89,4 @@ window.fetch = async function(input, init = {}) {
     headers: new Headers(result.headers || {}),
   });
 };
+} // if (!fetchProxyDisabled)

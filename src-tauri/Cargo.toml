@@ -1,5 +1,5 @@
 [package]
-name = "passbolt-app"
+name = "passbolt"
 version = "0.1.0"
 description = "Passbolt Desktop Application"
 authors = ["Your Name <your.email@example.com>"]

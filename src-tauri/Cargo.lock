@@ -2971,7 +2971,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "passbolt-app"
+name = "passbolt"
 version = "0.1.0"
 dependencies = [
  "arboard",

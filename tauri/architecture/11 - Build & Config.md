@@ -132,7 +132,7 @@ strip = true          # Strip debug symbols
 ## VS Code
 
 File: `.vscode/extensions.json` -- recommends tauri-vscode, rust-analyzer, vscode-lldb
-File: `.vscode/launch.json` -- LLDB debug config for `passbolt-app` binary with `RUST_LOG=debug`
+File: `.vscode/launch.json` -- LLDB debug config for `passbolt` binary with `RUST_LOG=debug`
 
 ## Capabilities
 

@@ -178,8 +178,8 @@ impl KeyringService {
         use windows::Security::Credentials::PasswordVault;
 
         let vault = PasswordVault::new().ok()?;
-        let resource = HSTRING::from(&self.service_name);
-        let username = HSTRING::from(key);
+        let resource = HSTRING::from(key);
+        let username = HSTRING::from(&self.service_name);
         let credential = vault.Retrieve(&resource, &username).ok()?;
         credential.RetrievePassword().ok()?;
         credential.Password().ok().map(|password| password.to_string())
@@ -197,8 +197,8 @@ impl KeyringService {
         let _ = self.delete(key);
 
         let credential = PasswordCredential::CreatePasswordCredential(
-            &HSTRING::from(&self.service_name),
             &HSTRING::from(key),
+            &HSTRING::from(&self.service_name),
             &HSTRING::from(value),
         )
         .map_err(|error| AppError::CredentialError(format!("PasswordVault credential error: {}", error)))?;
@@ -215,8 +215,8 @@ impl KeyringService {
         let vault = PasswordVault::new()
             .map_err(|error| AppError::CredentialError(format!("PasswordVault init error: {}", error)))?;
 
-        let resource = HSTRING::from(&self.service_name);
-        let username = HSTRING::from(key);
+        let resource = HSTRING::from(key);
+        let username = HSTRING::from(&self.service_name);
 
         match vault.Retrieve(&resource, &username) {
             Ok(credential) => vault.Remove(&credential)

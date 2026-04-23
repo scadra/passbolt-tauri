@@ -175,11 +175,17 @@ fn remap_topic_for_rendered(mut ipc: IpcMessage) -> IpcMessage {
 }
 
 /// Navigate a webview to a URL.
+///
+/// On Windows, `passbolt://` URLs are converted to the HTTP-mapped format
+/// (`http://passbolt.{host}/`) because webviews use `WebviewUrl::External`
+/// and WebView2 doesn't resolve custom schemes for subsequent navigations.
 pub fn navigate_webview(app: &AppHandle, label: &str, url: &str) {
-    info!("[NAV] {} → {}", label, url);
+    let navigation_url = crate::config::to_navigation_url(url);
+
+    info!("[NAV] {} → {}", label, navigation_url);
 
     if let Some(window) = app.get_webview_window(label) {
-        let parsed: tauri::Url = url.parse().unwrap();
+        let parsed: tauri::Url = navigation_url.parse().unwrap();
         match window.navigate(parsed) {
             Ok(_) => info!("[NAV] {} navigation dispatched", label),
             Err(error) => warn!("[NAV] {} navigation failed: {}", label, error),

@@ -52,6 +52,7 @@ pub fn generate_index_html(ctx: &IndexContext) -> String {
     <meta charset="UTF-8">
     <meta http-equiv="Content-Security-Policy" content="{csp}" />
     <meta name="instance-uuid" content="{uuid}" />
+    <style>#__tauri_isolation__ {{ display: none !important; }}</style>
     {stylesheet_tag}
 </head>
 <body>

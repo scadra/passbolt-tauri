@@ -37,7 +37,7 @@ pub fn create_webviews(
     // The custom protocol handler is still registered and intercepts these requests.
     // This avoids WebView2's problematic custom-scheme-to-HTTP origin mapping.
     #[cfg(target_os = "windows")]
-    let rendered_webview_url = tauri::WebviewUrl::External(rendered_url.replace("passbolt://", "http://passbolt.").parse().unwrap());
+    let rendered_webview_url = tauri::WebviewUrl::External(config::to_navigation_url(&rendered_url).parse().unwrap());
     #[cfg(not(target_os = "windows"))]
     let rendered_webview_url = tauri::WebviewUrl::CustomProtocol(rendered_url.parse().unwrap());
 
@@ -128,7 +128,7 @@ pub fn create_webviews(
     let app_for_bg_nav = app.clone();
     let app_for_bg = app.clone();
     #[cfg(target_os = "windows")]
-    let background_webview_url = tauri::WebviewUrl::External(background_url.replace("passbolt://", "http://passbolt.").parse().unwrap());
+    let background_webview_url = tauri::WebviewUrl::External(config::to_navigation_url(&background_url).parse().unwrap());
     #[cfg(not(target_os = "windows"))]
     let background_webview_url = tauri::WebviewUrl::CustomProtocol(background_url.parse().unwrap());
 

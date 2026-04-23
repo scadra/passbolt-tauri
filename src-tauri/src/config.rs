@@ -91,3 +91,16 @@ pub fn isolation_frame_src(schema: &str) -> String {
     #[cfg(not(target_os = "windows"))]
     { format!("{}://localhost", schema) }
 }
+
+/// Convert a `passbolt://` internal URL to the browser-navigable format.
+///
+/// On macOS, returns the URL unchanged (WKWebView handles custom schemes natively).
+/// On Windows, rewrites to `http://passbolt.{host}/{path}` because WebView2 maps
+/// custom schemes to HTTP and doesn't resolve `passbolt://` for navigations.
+pub fn to_navigation_url(url: &str) -> String {
+    #[cfg(target_os = "windows")]
+    { url.replace("passbolt://", "http://passbolt.") }
+
+    #[cfg(not(target_os = "windows"))]
+    { url.to_string() }
+}

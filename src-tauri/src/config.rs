@@ -2,7 +2,13 @@
 pub const PROTOCOL_SCHEME: &str = "passbolt";
 
 /// Domain suffix for virtual host validation.
-pub const DOMAIN_SUFFIX: &str = ".passbolt.local";
+///
+/// Uses `.passbolt.localhost` (not `.passbolt.local`) because on Windows, WebView2
+/// maps custom protocols to `http://{scheme}.{host}/`. Only `*.localhost` domains
+/// are treated as secure contexts in Chromium, which is required for `crypto.subtle`
+/// (used by Tauri's isolation bridge). On macOS this makes no difference — WKWebView
+/// treats custom scheme URLs as secure regardless of the domain suffix.
+pub const DOMAIN_SUFFIX: &str = ".passbolt.localhost";
 
 /// Webview labels — must match capabilities/default.json exactly.
 pub const RENDERED_WEBVIEW_LABEL: &str = "rendered-webview";

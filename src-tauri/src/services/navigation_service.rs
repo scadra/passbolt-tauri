@@ -149,46 +149,36 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
         crate::services::auth_service::redirect_to_workspace(app, &state);
     }
 
-    // --- Windows: async cookie extraction (cookies_for_url deadlocks on main thread) ---
-    // Then navigate BOTH webviews (Rendered is stuck on the external MFA page).
+    // --- Windows: navigate immediately, extract cookies async ---
+    // cookies_for_url() deadlocks on the main thread (WebView2's GetCookies is
+    // async, Tauri wraps it synchronously). Navigate both webviews first (instant),
+    // then extract MFA cookies off the main thread. Cookies arrive before the
+    // workspace JS boots up and makes its first API call.
     #[cfg(target_os = "windows")]
     {
+        // Navigate both webviews to workspace immediately
+        crate::services::auth_service::redirect_to_workspace(app, &state);
+        let rendered_url = crate::services::webview_service::build_webview_url(
+            "rendered-webview",
+            &state.navigation.get_rendered_uuid(),
+            &crate::state::AppMode::Workspace,
+        );
+        crate::services::topics::handlers::navigate_webview(
+            app, config::RENDERED_WEBVIEW_LABEL, &rendered_url,
+        );
+
+        // Extract cookies off main thread in parallel
         let app_handle = app.clone();
         let cookie_state = state.cookies.clone();
         let trusted_domain = state.navigation.get_trusted_domain();
-        let rendered_uuid = state.navigation.get_rendered_uuid();
-        let background_uuid = state.navigation.get_background_uuid();
-
-        // Prepare workspace state synchronously before spawning
-        state.reset_for_navigation();
-        state.navigation.set_mode(crate::state::AppMode::Workspace);
-
         tauri::async_runtime::spawn(async move {
             if let Some(webview) = app_handle.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
                 if let Some(domain) = &trusted_domain {
-                    let count = crate::services::cookie_service::extract_cookies_from_webview(
-                        &webview,
-                        &cookie_state,
-                        domain,
+                    crate::services::cookie_service::extract_cookies_from_webview(
+                        &webview, &cookie_state, domain,
                     );
-                    eprintln!("[MFA] Extracted {} cookies from webview", count);
                 }
             }
-
-            let background_url = crate::services::webview_service::build_webview_url(
-                "background-webview", &background_uuid, &crate::state::AppMode::Workspace,
-            );
-            crate::services::topics::handlers::navigate_webview(
-                &app_handle, config::BACKGROUND_WEBVIEW_LABEL, &background_url,
-            );
-
-            let rendered_url = crate::services::webview_service::build_webview_url(
-                "rendered-webview", &rendered_uuid, &crate::state::AppMode::Workspace,
-            );
-            crate::services::topics::handlers::navigate_webview(
-                &app_handle, config::RENDERED_WEBVIEW_LABEL, &rendered_url,
-            );
-            eprintln!("[MFA] Workspace navigation dispatched");
         });
     }
 }

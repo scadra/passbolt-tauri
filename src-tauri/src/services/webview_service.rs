@@ -29,6 +29,13 @@ pub fn create_webviews(
     let rendered_url = build_webview_url("rendered-webview", rendered_uuid, mode);
     let background_url = build_webview_url("background-webview", background_uuid, mode);
 
+    // On Windows, use Tauri's native asset serving (https://tauri.localhost/)
+    // instead of custom protocol, to test if isolation works without it.
+    #[cfg(target_os = "windows")]
+    let rendered_webview_url = tauri::WebviewUrl::App("index.html".into());
+    #[cfg(not(target_os = "windows"))]
+    let rendered_webview_url = tauri::WebviewUrl::CustomProtocol(rendered_url.parse().unwrap());
+
     // --- Rendered webview ---
     let app_for_rv_nav = app.clone();
     let app_for_rv_new_window = app.clone();
@@ -36,7 +43,7 @@ pub fn create_webviews(
     let rendered_window = tauri::WebviewWindowBuilder::new(
         app,
         config::RENDERED_WEBVIEW_LABEL,
-        tauri::WebviewUrl::CustomProtocol(rendered_url.parse().unwrap()),
+        rendered_webview_url,
     )
     .title("Passbolt")
     .inner_size(1024.0, 768.0)
@@ -117,12 +124,17 @@ pub fn create_webviews(
     info!("Rendered webview created (uuid: {})", rendered_uuid);
 
     // --- Background webview ---
+    #[cfg(target_os = "windows")]
+    let background_webview_url = tauri::WebviewUrl::App("index.html".into());
+    #[cfg(not(target_os = "windows"))]
+    let background_webview_url = tauri::WebviewUrl::CustomProtocol(background_url.parse().unwrap());
+
     let app_for_bg_nav = app.clone();
     let app_for_bg = app.clone();
     let background_window = tauri::WebviewWindowBuilder::new(
         app,
         config::BACKGROUND_WEBVIEW_LABEL,
-        tauri::WebviewUrl::CustomProtocol(background_url.parse().unwrap()),
+        background_webview_url,
     )
     .title("Passbolt Background")
     .visible(false) // Background webview is always hidden

@@ -31,9 +31,8 @@ use crate::state::AppState;
 pub fn register_rendered_listener(webview: &WebviewWindow) {
     let rendered_service = RenderedTopicService::default();
     let app_handle = webview.app_handle().clone();
-    let listener_handle = app_handle.clone();
 
-    listener_handle.listen(config::RENDERED_IPC_MESSAGE, move |event| {
+    webview.listen(config::RENDERED_IPC_MESSAGE, move |event| {
         let payload_str = event.payload();
         if let Some(result) = parse_ipc_payload(payload_str) {
             match result {
@@ -48,7 +47,7 @@ pub fn register_rendered_listener(webview: &WebviewWindow) {
         }
     });
 
-    debug!("[IPC] Rendered listener registered (global, app-level)");
+    debug!("[IPC] Rendered listener registered (scoped to webview)");
 }
 
 /// Register the IPC listener on the Background webview.
@@ -59,9 +58,8 @@ pub fn register_rendered_listener(webview: &WebviewWindow) {
 pub fn register_background_listener(webview: &WebviewWindow) {
     let background_service = BackgroundTopicService;
     let app_handle = webview.app_handle().clone();
-    let listener_handle = app_handle.clone();
 
-    listener_handle.listen(config::BACKGROUND_IPC_MESSAGE, move |event| {
+    webview.listen(config::BACKGROUND_IPC_MESSAGE, move |event| {
         let payload_str = event.payload();
         if let Some(result) = parse_ipc_payload(payload_str) {
             match result {
@@ -76,7 +74,7 @@ pub fn register_background_listener(webview: &WebviewWindow) {
         }
     });
 
-    debug!("[IPC] Background listener registered (global, app-level)");
+    debug!("[IPC] Background listener registered (scoped to webview)");
 }
 
 /// Parse a raw JSON string into an IpcMessage.

@@ -76,8 +76,8 @@ pub fn rendered_navigation_starting(app: &AppHandle, url: &tauri::Url) -> bool {
     let url_str = url.to_string();
 
     // Allow navigation to this webview's own origin
-    // (equivalent of RenderedNavigationService.canNavigate checking the virtual host)
     let rendered_origin = webview_service::build_origin(&state.navigation.get_rendered_uuid());
+    eprintln!("[NAV_DEBUG] rendered_navigation_starting url={} origin={} match={}", url_str, rendered_origin, url_str.starts_with(&rendered_origin));
     if url_str.starts_with(&rendered_origin) {
         return true;
     }

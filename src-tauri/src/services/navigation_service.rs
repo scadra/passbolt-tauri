@@ -151,12 +151,13 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
         crate::services::auth_service::redirect_to_workspace(app, &state);
     }
 
-    // --- Windows: navigate both webviews to workspace ---
-    // Cookie sharing works automatically because the webview domain matches
-    // the API domain (both are subdomains of the trusted domain).
-    // No cookie extraction needed — the browser handles it.
+    // --- Windows: navigate immediately, extract cookies async ---
+    // cookies_for_url() deadlocks on the main thread (WebView2's GetCookies is
+    // async, Tauri wraps it synchronously). Navigate both webviews first (instant),
+    // then extract MFA cookies off the main thread.
     #[cfg(target_os = "windows")]
     {
+        // Navigate both webviews to workspace immediately
         crate::services::auth_service::redirect_to_workspace(app, &state);
         let trusted_domain = state.navigation.get_trusted_domain();
         let rendered_url = crate::services::webview_service::build_webview_url(
@@ -168,6 +169,20 @@ pub fn handle_mfa_completed_from_page_load(app: &AppHandle, _state: &AppState) {
         crate::services::topics::handlers::navigate_webview(
             app, config::RENDERED_WEBVIEW_LABEL, &rendered_url,
         );
+
+        // Extract MFA cookies off main thread
+        let app_handle = app.clone();
+        let cookie_state = state.cookies.clone();
+        let domain = state.navigation.get_trusted_domain();
+        tauri::async_runtime::spawn(async move {
+            if let Some(webview) = app_handle.get_webview_window(config::RENDERED_WEBVIEW_LABEL) {
+                if let Some(domain) = &domain {
+                    crate::services::cookie_service::extract_cookies_from_webview(
+                        &webview, &cookie_state, domain,
+                    );
+                }
+            }
+        });
     }
 }
 

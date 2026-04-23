@@ -100,9 +100,22 @@ pub fn rendered_navigation_starting(app: &AppHandle, url: &tauri::Url) -> bool {
     }
 
     // During MFA, the terminal redirect ({domain}/) is ALLOWED through.
-    // MFA completion is detected in on_page_load(Finished) instead of here,
-    // because triggering workspace navigation from on_navigation prevents
-    // the Background webview JS from executing (Tauri/WKWebView limitation).
+    // On macOS, MFA completion is detected in on_page_load(Finished) because
+    // triggering navigation from on_navigation prevents Background JS execution
+    // (WKWebView limitation). On Windows, we detect it here for faster transition
+    // — the MFA cookie is already set (from the 302 Set-Cookie header) before
+    // the redirect page loads.
+    #[cfg(target_os = "windows")]
+    if state.navigation.is_mfa_active() {
+        if let Some(domain) = state.navigation.get_trusted_domain() {
+            if crate::services::mfa_service::has_mfa_completed(&url_str, &domain) {
+                log::info!("[NavigationService] MFA completed (detected in on_navigation)");
+                handle_mfa_completed_from_page_load(app, &state);
+                return false; // Block the redirect — stay on MFA page until workspace is ready
+            }
+        }
+    }
+
     true
 }
 

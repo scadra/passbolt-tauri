@@ -120,12 +120,10 @@ pub fn redirect_to_workspace(app: &AppHandle, state: &AppState) {
     info!("[AuthService] Redirecting to workspace");
     state.reset_for_navigation();
     state.navigation.set_mode(AppMode::Workspace);
-    let trusted_domain = state.navigation.get_trusted_domain();
     let url = build_webview_url(
         "background-webview",
         &state.navigation.get_background_uuid(),
         &AppMode::Workspace,
-        trusted_domain.as_deref(),
     );
     handlers::navigate_webview(app, config::BACKGROUND_WEBVIEW_LABEL, &url);
 }
@@ -141,12 +139,10 @@ pub fn redirect_to_auth(app: &AppHandle, state: &AppState) {
 /// processes pending evaluateJavaScript calls from Background.
 pub fn navigate_rendered(app: &AppHandle, state: &AppState) {
     let mode = state.navigation.get_mode();
-    let trusted_domain = state.navigation.get_trusted_domain();
     let url = build_webview_url(
         "rendered-webview",
         &state.navigation.get_rendered_uuid(),
         &mode,
-        trusted_domain.as_deref(),
     );
     let app = app.clone();
     tauri::async_runtime::spawn(async move {

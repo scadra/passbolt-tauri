@@ -58,14 +58,20 @@ pub fn save_account(
         state.ipc.add_pending_request(request_id, config::SAVE_ACCOUNT);
     }
 
-    let trusted_domain = state.navigation.get_trusted_domain();
+    // Navigate BOTH webviews to auth with the new trusted domain.
+    // Like UWP: Import → Auth reloads both webviews with the API domain.
     let bg_url = build_webview_url(
         "background-webview",
         &state.navigation.get_background_uuid(),
         &AppMode::Auth,
-        trusted_domain.as_deref(),
+    );
+    let rv_url = build_webview_url(
+        "rendered-webview",
+        &state.navigation.get_rendered_uuid(),
+        &AppMode::Auth,
     );
     handlers::navigate_webview(app, config::BACKGROUND_WEBVIEW_LABEL, &bg_url);
+    handlers::navigate_webview(app, config::RENDERED_WEBVIEW_LABEL, &rv_url);
 
     info!("[AccountService] Account saved, navigating to auth");
     let _ = ipc_request_id; // Used by caller for error responses
@@ -90,13 +96,11 @@ pub fn rollback_import(app: &AppHandle, state: &AppState) {
         "background-webview",
         &state.navigation.get_background_uuid(),
         &AppMode::Import,
-        None,
     );
     let rv_url = build_webview_url(
         "rendered-webview",
         &state.navigation.get_rendered_uuid(),
         &AppMode::Import,
-        None,
     );
     handlers::navigate_webview(app, config::BACKGROUND_WEBVIEW_LABEL, &bg_url);
     handlers::navigate_webview(app, config::RENDERED_WEBVIEW_LABEL, &rv_url);

@@ -50,12 +50,10 @@ fn main() {
             let state = app.state::<AppState>();
             let rv_uuid = state.navigation.get_rendered_uuid();
             let bg_uuid = state.navigation.get_background_uuid();
-            let trusted_domain = state.navigation.get_trusted_domain();
-
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 debug!("[Setup] Async: creating webviews...");
-                if let Err(error) = webview_service::create_webviews(&app_handle, &mode, &rv_uuid, &bg_uuid, trusted_domain.as_deref()) {
+                if let Err(error) = webview_service::create_webviews(&app_handle, &mode, &rv_uuid, &bg_uuid) {
                     error!("[Setup] Failed to create webviews: {}", error);
                 }
                 debug!("[Setup] Async: webviews created");

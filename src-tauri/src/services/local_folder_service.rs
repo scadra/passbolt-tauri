@@ -25,14 +25,13 @@ pub struct IndexContext<'a> {
 /// Generate the dynamic `index.html` for a given webview and mode.
 pub fn generate_index_html(ctx: &IndexContext) -> String {
     let csp = generate_csp(ctx);
-    let bundle_src = get_bundle_src(ctx.target, ctx.mode, ctx.uuid, ctx.trusted_domain);
+    let bundle_src = get_bundle_src(ctx.target, ctx.mode, ctx.uuid);
     let base = asset_base(
         match ctx.target {
             WebviewTarget::Rendered => "rendered-webview",
             WebviewTarget::Background => "background-webview",
         },
         ctx.uuid,
-        ctx.trusted_domain,
     );
 
     // Rendered gets the stylesheet manager that dynamically loads the CSS theme
@@ -85,9 +84,11 @@ pub fn generate_csp(ctx: &IndexContext) -> String {
 ///
 /// macOS:   `passbolt://{uuid}.passbolt.localhost/apps/{webview}/`
 /// Windows: `https://passbolt.{uuid}.cloud.passbolt.com/apps/{webview}/` (with trusted domain)
-fn asset_base(webview_dir: &str, uuid: &str, trusted_domain: Option<&str>) -> String {
-    let host = config::webview_host(uuid, trusted_domain);
-    config::browser_url(&host, &format!("/apps/{}/", webview_dir))
+fn asset_base(webview_dir: &str, uuid: &str) -> String {
+    config::browser_url(
+        &format!("{}{}", uuid, config::DOMAIN_SUFFIX),
+        &format!("/apps/{}/", webview_dir),
+    )
 }
 
 /// `frame-src` directive for Tauri's isolation iframe — platform-aware.
@@ -105,7 +106,7 @@ fn frame_src_directive(isolation_schema: Option<&str>) -> String {
 ///
 /// Key security property: `connect-src` NEVER includes the API domain.
 fn generate_rendered_csp(ctx: &IndexContext) -> String {
-    let base = asset_base("rendered-webview", ctx.uuid, ctx.trusted_domain);
+    let base = asset_base("rendered-webview", ctx.uuid);
 
     let script_src = format!("script-src {base}");
     let style_src = format!("style-src 'self' 'unsafe-inline' {base}dist/themes/");
@@ -123,7 +124,7 @@ fn generate_rendered_csp(ctx: &IndexContext) -> String {
         }
     };
 
-    let origin = config::browser_origin(ctx.uuid, ctx.trusted_domain);
+    let origin = config::browser_origin(ctx.uuid);
     let connect_src = match ctx.mode {
         AppMode::Import => {
             format!("connect-src {}", config::ipc_connect_src())
@@ -154,13 +155,13 @@ fn generate_rendered_csp(ctx: &IndexContext) -> String {
 /// All HTTP requests go through the Rust proxy via IPC events, so no HTTPS
 /// domain needs to be whitelisted here.
 fn generate_background_csp(ctx: &IndexContext) -> String {
-    let base = asset_base("background-webview", ctx.uuid, ctx.trusted_domain);
+    let base = asset_base("background-webview", ctx.uuid);
 
     let script_src = format!("script-src {base}");
     // The browser-extension injects inline styles — safe here (headless worker, no visible UI)
     let style_src = "style-src 'unsafe-inline'".to_string();
 
-    let origin = config::browser_origin(ctx.uuid, ctx.trusted_domain);
+    let origin = config::browser_origin(ctx.uuid);
 
     let connect_src = format!("connect-src {} {origin}", config::ipc_connect_src());
 
@@ -180,7 +181,7 @@ fn generate_background_csp(ctx: &IndexContext) -> String {
 }
 
 /// Returns the browser-visible URL for the JS bundle.
-fn get_bundle_src(target: &WebviewTarget, mode: &AppMode, uuid: &str, trusted_domain: Option<&str>) -> String {
+fn get_bundle_src(target: &WebviewTarget, mode: &AppMode, uuid: &str) -> String {
     let (webview_dir, name) = match target {
         WebviewTarget::Rendered => ("rendered-webview", "rendered"),
         WebviewTarget::Background => ("background-webview", "background"),
@@ -190,8 +191,10 @@ fn get_bundle_src(target: &WebviewTarget, mode: &AppMode, uuid: &str, trusted_do
         AppMode::Auth => "auth",
         AppMode::Workspace => "workspace",
     };
-    let host = config::webview_host(uuid, trusted_domain);
-    config::browser_url(&host, &format!("/apps/{}/dist/{}-{}.js", webview_dir, name, mode_suffix))
+    config::browser_url(
+        &format!("{}{}", uuid, config::DOMAIN_SUFFIX),
+        &format!("/apps/{}/dist/{}-{}.js", webview_dir, name, mode_suffix),
+    )
 }
 
 /// Format trusted domain with trailing slash, or empty string if None.

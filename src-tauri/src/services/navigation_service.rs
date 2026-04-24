@@ -40,18 +40,15 @@ const ALLOWED_EXTERNAL_EXACT: &[&str] = &[
 pub fn navigate_both_webviews(app: &AppHandle, state: &AppState, mode: AppMode) {
     state.reset_for_navigation();
     state.navigation.set_mode(mode.clone());
-    let trusted_domain = state.navigation.get_trusted_domain();
     let background_url = webview_service::build_webview_url(
         "background-webview",
         &state.navigation.get_background_uuid(),
         &mode,
-        trusted_domain.as_deref(),
     );
     let rendered_url = webview_service::build_webview_url(
         "rendered-webview",
         &state.navigation.get_rendered_uuid(),
         &mode,
-        trusted_domain.as_deref(),
     );
     handlers::navigate_webview(app, config::BACKGROUND_WEBVIEW_LABEL, &background_url);
     handlers::navigate_webview(app, config::RENDERED_WEBVIEW_LABEL, &rendered_url);
@@ -79,8 +76,7 @@ pub fn rendered_navigation_starting(app: &AppHandle, url: &tauri::Url) -> bool {
     let url_str = url.to_string();
 
     // Allow navigation to this webview's own origin
-    let trusted_domain = state.navigation.get_trusted_domain();
-    let rendered_origin = webview_service::build_origin(&state.navigation.get_rendered_uuid(), trusted_domain.as_deref());
+    let rendered_origin = webview_service::build_origin(&state.navigation.get_rendered_uuid());
     if url_str.starts_with(&rendered_origin) {
         return true;
     }
@@ -225,8 +221,7 @@ pub fn handle_new_window_requested(app: &AppHandle, url: &str) {
 /// else as defense in depth — the private key lives in this webview.
 pub fn background_navigation_starting(app: &AppHandle, url: &tauri::Url) -> bool {
     let state = app.state::<AppState>();
-    let trusted_domain = state.navigation.get_trusted_domain();
-    let background_origin = webview_service::build_origin(&state.navigation.get_background_uuid(), trusted_domain.as_deref());
+    let background_origin = webview_service::build_origin(&state.navigation.get_background_uuid());
     let url_str = url.to_string();
 
     if url_str.starts_with(&background_origin) {

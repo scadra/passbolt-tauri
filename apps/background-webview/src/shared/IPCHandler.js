@@ -143,7 +143,9 @@ class IPCHandler {
         message = requestArgs.length > 2 ? requestArgs[2] : null;
       } else {
         status = null;
-        message = requestArgs[1];
+        message = requestArgs.length > 2
+          ? requestArgs.slice(1)
+          : requestArgs[1];
       }
       ipc = {
         topic: requestArgs[0],

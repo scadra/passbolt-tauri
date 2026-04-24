@@ -5,7 +5,10 @@ use crate::config;
 use crate::models::ipc_message::IpcMessage;
 use crate::state::AppState;
 use crate::topics::authentication_topics::AuthenticationTopics;
+use crate::topics::folder_topics::FolderTopics;
 use crate::topics::locale_storage_topics::LocalStorageTopics;
+use crate::topics::progress_topics::ProgressTopics;
+use crate::topics::secret_topics::SecretTopics;
 use super::topics::{handlers, background_handlers as bg};
 
 /// Routes messages coming **from** the Background webview.
@@ -43,6 +46,17 @@ impl BackgroundTopicService {
             t if t == LocalStorageTopics::BACKGROUND_LOCALSTORAGE_UPDATE
                 || t == LocalStorageTopics::BACKGROUND_LOCALSTORAGE_DELETE
                 || t == LocalStorageTopics::BACKGROUND_LOCALSTORAGE_CLEAR =>
+            {
+                handlers::buffer_or_forward_to_rendered(app, state, ipc);
+            }
+
+            // Forward to Rendered — dialog/progress events the Rendered UI listens for
+            t if t == ProgressTopics::PROGRESSOPENDIALOG
+                || t == ProgressTopics::PROGRESSUPDATEGOALS
+                || t == ProgressTopics::PROGRESSCLOSEDIALOG
+                || t == ProgressTopics::PROGRESSUPDATE
+                || t == SecretTopics::PASSPHRASE_REQUEST
+                || t == FolderTopics::MOVE_STRATEGY_REQUEST =>
             {
                 handlers::buffer_or_forward_to_rendered(app, state, ipc);
             }

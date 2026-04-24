@@ -56,10 +56,11 @@ pub fn require_mfa(app: &AppHandle, state: &AppState, request: &MfaRequest) {
     }
 }
 
-/// Process voluntary logout: clear cached credentials and navigate to auth mode.
+/// Process voluntary logout: clear session state and navigate to auth mode.
+/// Credentials (account metadata + PGP key) are kept in cache — they're
+/// static identity data needed by the auth screen.
 pub fn logout(app: &AppHandle, state: &AppState) {
     info!("[AuthService] Logout — redirecting to auth");
-    state.credentials.clear();
     state.cookies.clear();
     redirect_to_auth(app, state);
 }

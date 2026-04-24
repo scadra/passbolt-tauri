@@ -19,6 +19,7 @@ pub async fn handle_fetch(
     request: &HttpFetchRequest,
     trusted_domain: Option<&str>,
     cookies: &CookieState,
+    client: &reqwest::Client,
 ) -> FetchResponse {
     if cfg!(debug_assertions) {
         eprintln!("[HTTP] >>> {} {} headers={}", request.method, request.url, request.headers.len());
@@ -52,14 +53,7 @@ pub async fn handle_fetch(
         return FetchResponse::preflight();
     }
 
-    // Build reqwest client — follow redirects (matches C# HttpClient default behaviour).
-    // Required for MFA: GET /auth/is-authenticated.json → 302 → /mfa/verify/error.json
-    let client = match reqwest::Client::builder().build() {
-        Ok(built) => built,
-        Err(error) => return FetchResponse::error(500, &format!("Client error: {}", error)),
-    };
-
-    // Build request
+    // Reuse the shared client — connection pooling (TLS session, TCP socket)
     let mut req_builder = client.request(method.clone(), &request.url);
 
     for (key, value) in &request.headers {

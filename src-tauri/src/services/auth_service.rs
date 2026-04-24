@@ -138,6 +138,7 @@ pub fn redirect_to_auth(app: &AppHandle, state: &AppState) {
 /// Spawned async to avoid blocking the IPC thread while the main thread
 /// processes pending evaluateJavaScript calls from Background.
 pub fn navigate_rendered(app: &AppHandle, state: &AppState) {
+    eprintln!("[MFA_PERF] navigate_rendered — dispatching");
     let mode = state.navigation.get_mode();
     let url = build_webview_url(
         "rendered-webview",
@@ -156,7 +157,7 @@ pub fn navigate_rendered(app: &AppHandle, state: &AppState) {
 /// in workspace mode and a passphrase was cached during login/MFA.
 pub fn deliver_cached_passphrase(app: &AppHandle, state: &AppState) {
     if let Some(passphrase) = state.auth.take_passphrase() {
-        debug!("[AuthService] Delivering passphrase + navigating Rendered to workspace");
+        eprintln!("[MFA_PERF] deliver_cached_passphrase — sending passphrase + navigating Rendered");
         let mut msg = IpcMessage::new(
             config::BACKGROUND_STORE_PASSPHRASE,
             Some(serde_json::Value::String(passphrase)),

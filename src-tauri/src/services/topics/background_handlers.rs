@@ -16,7 +16,7 @@ use super::handlers;
 /// Bilateral ready handshake (same pattern as WinUI 3):
 /// when both webviews are ready, send signals to both sides.
 pub fn handle_background_ready(app: &AppHandle, state: &AppState) {
-    info!("[BackgroundTopic] Background is ready");
+    eprintln!("[MFA_PERF] handle_background_ready — Background workspace booted");
     state.navigation.set_background_ready(true);
 
     // Resolve pending SAVE_ACCOUNT request — send SUCCESS to Rendered so the
@@ -238,6 +238,7 @@ pub fn handle_http_fetch(app: &AppHandle, state: &AppState, ipc: &IpcMessage) {
 
     let trusted_domain = state.navigation.get_trusted_domain();
     let cookies = state.cookies.clone();
+    let http_client = state.http_client.clone();
     let app_clone = app.clone();
 
     tauri::async_runtime::spawn(async move {
@@ -247,6 +248,7 @@ pub fn handle_http_fetch(app: &AppHandle, state: &AppState, ipc: &IpcMessage) {
             &fetch_request,
             trusted_domain.as_deref(),
             &cookies,
+            &http_client,
         ).await;
 
         let response = IpcMessage::success(&request_id, Some(result.into_value()));
